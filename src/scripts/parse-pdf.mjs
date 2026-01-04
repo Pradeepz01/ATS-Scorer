@@ -1,5 +1,4 @@
 import fs from 'fs';
-import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.mjs';
 import path from 'path';
 
 // Polyfill Promise.withResolvers if missing (Node < 22)
@@ -14,7 +13,7 @@ if (typeof Promise.withResolvers === 'undefined') {
     };
 }
 
-// Polyfill DOMMatrix
+// Polyfill DOMMatrix FIRST before importing pdfjs-dist
 if (typeof global.DOMMatrix === 'undefined') {
     global.DOMMatrix = class DOMMatrix {
         constructor() {
@@ -26,23 +25,28 @@ if (typeof global.DOMMatrix === 'undefined') {
     };
 }
 
-async function parsePDF(filePath) {
+// Main execution function
+async function main() {
+    const filePath = process.argv[2];
+    if (!filePath) {
+        console.log(JSON.stringify({ success: false, error: "No file path provided" }));
+        process.exit(1);
+    }
+
     try {
+        // Dynamic import ensures polyfills are set before library loads
+        const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs');
+
         const buffer = fs.readFileSync(filePath);
         const data = new Uint8Array(buffer);
 
         // Explicitly point to standard fonts in node_modules relative to this script or CWD
-        // We assume the script is run from project root or we find node_modules
         const standardFontDataUrl = path.join(process.cwd(), 'node_modules/pdfjs-dist/standard_fonts/').split(path.sep).join('/') + '/';
 
         const loadingTask = pdfjsLib.getDocument({
             data,
             standardFontDataUrl,
             disableFontFace: true,
-            // Force disable worker to avoid looking for worker file
-            // In legacy build, this often falls back to main thread "fake worker"
-            // if we don't specify workerSrc.
-            // However, if it fails, we might need to set workerSrc to null or similar.
         });
 
         const pdfDocument = await loadingTask.promise;
@@ -64,10 +68,4 @@ async function parsePDF(filePath) {
     }
 }
 
-const filePath = process.argv[2];
-if (!filePath) {
-    console.log(JSON.stringify({ success: false, error: "No file path provided" }));
-    process.exit(1);
-}
-
-parsePDF(filePath);
+main();
