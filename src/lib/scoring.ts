@@ -389,7 +389,7 @@ export function calculateATSScore(text: string, platformStats?: ATSResult['platf
 
     // Check contact info explicitly for feedback
     const hasEmail = /([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9_-]+)/.test(text);
-    const hasPhone = /(\+?\d{1,3}[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}/.test(text) || /\d{10}/.test(text);
+    const hasPhone = /(?:\+?\d{1,3}[-.\s]?)?\d{10}\b/.test(text) || /(\+?\d{1,3}[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}/.test(text);
 
     if (!hasEmail) feedback.push("Email address missing or not detected.");
     if (!hasPhone) feedback.push("Phone number missing or not detected.");
