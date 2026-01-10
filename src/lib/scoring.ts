@@ -66,10 +66,6 @@ export interface ATSResult {
     };
 }
 
-const COMMON_SECTIONS = [
-    "Experience", "Work History", "Education", "Skills", "Summary", "Profile", "Projects", "Certifications"
-];
-
 // ECE Domain Keywords (Kept for basic eceScores calculation)
 const ECE_DOMAINS = {
     communication: ["signal processing", "dsp", "matlab", "fft", "filters", "wireless", "5g", "lte", "modulation", "communication systems", "rf", "antenna", "spectrum"],
@@ -163,7 +159,7 @@ function getRoleDomain(role: RoleData): string {
     return "core";
 }
 
-function predictRole(eceScores: any, text: string) {
+function predictRole(eceScores: ATSResult['eceScores'], text: string) {
     const cgpa = extractCGPA(text);
 
     // --- Experience & Seniority Detection ---
@@ -216,7 +212,7 @@ function predictRole(eceScores: any, text: string) {
     // Helper to find best role in a specific domain
     const findBestRole = (domainName: string, excludeRoles: typeof scoredRoles) => {
         return scoredRoles.find(r =>
-            (r as any).rDomain === domainName &&
+            (r as RoleData & { rDomain: string }).rDomain === domainName &&
             !excludeRoles.includes(r) &&
             r.score > 10 // Lowered threshold slightly to ensure match
         );
@@ -254,8 +250,7 @@ function predictRole(eceScores: any, text: string) {
     const secondaryRoles = selectedRoles.slice(1).map(r => r.role);
 
     // Role discovery improvement: Ensure high confidence or use GET fallback
-    let rolesForPrediction = [selectedRoles[0]];
-    const bestScore = selectedRoles[0]?.score || 0;
+    const rolesForPrediction = [selectedRoles[0]];
 
     // --- Weighted Salary Prediction with CGPA Boost ---
     let totalWeight = 0;
@@ -278,7 +273,7 @@ function predictRole(eceScores: any, text: string) {
             }
 
             // Stricter Salary Logic
-            let effectiveMin = min;
+            const effectiveMin = min;
             let effectiveMax = max;
 
             // If low confidence, drag max down to min
@@ -361,7 +356,7 @@ export function calculateATSScore(text: string, platformStats?: ATSResult['platf
     };
 
     const missingSections = Object.entries(sections)
-        .filter(([_, present]) => !present)
+        .filter(([, present]) => !present)
         .map(([key]) => key.charAt(0).toUpperCase() + key.slice(1));
 
     let sectionScore = 0;
@@ -381,7 +376,7 @@ export function calculateATSScore(text: string, platformStats?: ATSResult['platf
         if (lowerText.includes(verb)) actionVerbCount++;
     });
 
-    let feedback: string[] = [];
+    const feedback: string[] = [];
     if (actionVerbCount >= 3) formattingScore += 10;
     else feedback.push("Use more strong action verbs (e.g., Developed, Engineered, Optimized).");
 

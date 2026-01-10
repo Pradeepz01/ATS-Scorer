@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Check, AlertCircle, Award, FileText, Zap, BookOpen } from "lucide-react";
+import { AlertCircle, FileText } from "lucide-react";
 import { ATSResult } from "@/lib/scoring";
 import { cn } from "@/lib/utils";
 import SkillRadar from "./SkillRadar";
@@ -158,24 +158,4 @@ export default function ScoreDashboard({ analysis, onReset }: ScoreDashboardProp
             </div>
         </div>
     );
-}
-
-function MetricCard({ icon, title, score, description }: { icon: any, title: string, score: number, description: string }) {
-    return (
-        <div className="bg-card border rounded-xl p-6 shadow-sm flex flex-col items-center text-center hover:shadow-md transition-shadow">
-            <div className="p-3 bg-muted rounded-full mb-4">
-                {icon}
-            </div>
-            <h3 className="font-semibold">{title}</h3>
-            <div className="mt-2 mb-1 text-2xl font-bold">{score}%</div>
-            <p className="text-xs text-muted-foreground">{description}</p>
-            {/* Mini Progress Bar */}
-            <div className="w-full bg-muted rounded-full h-1.5 mt-4">
-                <div
-                    className="bg-primary h-1.5 rounded-full"
-                    style={{ width: `${score}%` }}
-                />
-            </div>
-        </div>
-    )
 }

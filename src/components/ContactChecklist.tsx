@@ -18,6 +18,13 @@ interface ContactChecklistProps {
     };
 }
 
+interface ItemWithStats {
+    label: string;
+    valid: boolean;
+    required: boolean;
+    stats?: string | null;
+}
+
 export default function ContactChecklist({ validation, platformStats }: ContactChecklistProps) {
     const items = [
         { label: "Email Address", valid: validation.email, required: true },
@@ -52,9 +59,9 @@ export default function ContactChecklist({ validation, platformStats }: ContactC
                             {item.label} {item.required ? <span className="text-destructive">*</span> : <span className="text-xs text-muted-foreground/50">(Optional)</span>}
                         </span>
                         <div className="flex items-center gap-2">
-                            {(item as any).stats && (
+                            {(item as ItemWithStats).stats && (
                                 <span className="text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded border border-primary/20 font-medium">
-                                    {(item as any).stats}
+                                    {(item as ItemWithStats).stats}
                                 </span>
                             )}
                             {item.valid ? (

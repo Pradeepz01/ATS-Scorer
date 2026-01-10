@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-require-imports */
 const fs = require('fs');
 
 const csvPath = 'd:\\USEME FOLDER\\ANTIGRAVITY\\ceg_core_skills_jobs_v3_final.csv';

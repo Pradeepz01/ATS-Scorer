@@ -40,10 +40,9 @@ export async function POST(req: NextRequest) {
             // Combine text and links for better discovery
             const searchSource = fullText + "\n" + extractedLinks.join("\n");
 
-            const lowerText = fullText.toLowerCase();
 
             // --- Parallel Platform Data Fetching ---
-            let platformStats: any = {};
+            const platformStats: Record<string, unknown> = {};
 
             const leetcodeMatch = searchSource.match(/(?:leetcode\.com\/(?:u\/)?)([\w\-\_]+)/i);
             const hdlbitsMatch = searchSource.match(/hdlbits\.01xz\.net\/wiki\/Special:VlgStats\/([A-Z0-9]+)/i);
@@ -124,16 +123,18 @@ export async function POST(req: NextRequest) {
                 analysis
             });
 
-        } catch (parseError: any) {
+        } catch (parseError: unknown) {
+            const error = parseError as Error;
             // Clean up temp file if exists
             if (fs.existsSync(tempFilePath)) fs.unlinkSync(tempFilePath);
-            throw parseError;
+            throw error;
         }
 
-    } catch (error: any) {
-        console.error("Error processing PDF:", error);
+    } catch (error: unknown) {
+        const err = error as Error;
+        console.error("Error processing PDF:", err);
         return NextResponse.json(
-            { error: "Failed to process PDF", details: error.message },
+            { error: "Failed to process PDF", details: err.message },
             { status: 500 }
         );
     }

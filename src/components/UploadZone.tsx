@@ -1,12 +1,13 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Upload, FileText, Loader2, CheckCircle, XCircle } from "lucide-react";
+import { Upload, Loader2, XCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
+import type { ATSResult } from "@/lib/scoring";
 
 interface UploadZoneProps {
-    onAnalysisComplete: (data: any) => void;
+    onAnalysisComplete: (data: ATSResult) => void;
 }
 
 export default function UploadZone({ onAnalysisComplete }: UploadZoneProps) {
@@ -48,9 +49,10 @@ export default function UploadZone({ onAnalysisComplete }: UploadZoneProps) {
 
             const data = await response.json();
             onAnalysisComplete(data.analysis);
-        } catch (err: any) {
-            console.error(err);
-            setError(err.message || "Failed to analyze resume. Please try again.");
+        } catch (err: unknown) {
+            const error = err as Error;
+            console.error(error);
+            setError(error.message || "Failed to analyze resume. Please try again.");
         } finally {
             setIsLoading(false);
             setIsDragging(false);

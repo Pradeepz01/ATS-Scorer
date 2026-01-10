@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Briefcase, Target, ArrowRight, CheckCircle, IndianRupee, Building2 } from "lucide-react";
+import { Target, CheckCircle, IndianRupee, Building2 } from "lucide-react";
 
 interface RolePredictorProps {
     prediction: {
@@ -95,7 +95,7 @@ export default function RolePredictor({ prediction }: RolePredictorProps) {
                 </div>
 
                 <p className="text-xs text-muted-foreground mt-2 italic">
-                    "Based on your best matching roles and skill alignment."
+                    &quot;Based on your best matching roles and skill alignment.&quot;
                 </p>
             </div>
 
