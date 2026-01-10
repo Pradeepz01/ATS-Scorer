@@ -100,16 +100,18 @@ const SKILL_ALIASES: Record<string, string[]> = {
     // Programming
     "python": ["numPy", "pandas", "matplotlib", "scripting"],
     "machine learning": ["deep learning", "neural networks", "ai", "tensorflow", "pytorch", "scikit-learn", "keras"],
-    "c++": ["cpp", "v/c++", "object oriented programming"]
+    "c++": ["cpp", "c c++", "c/c++", "c,c++", "c & c++", "object oriented programming", "c/cpp"]
 };
 
 // Helper to check if a skill (or its aliases) exists in text
 function hasMatch(text: string, targetSkill: string): boolean {
-    const normalizedText = text.toLowerCase()
-        .replace(/c\s*[\/\,]\s*c\+\+/g, "c c++") // Handle C/C++
-        .replace(/\bc\b\s*[\/\,]\s*\bc\+\+\b/g, "c c++");
+    const normalize = (val: string) => val.toLowerCase()
+        .replace(/c\s*[\/\,]\s*c\+\+/g, "c c++") // Handle C/C++ or C,C++
+        .replace(/\bc\b\s*[\/\,]\s*\bc\+\+\b/g, "c c++")
+        .replace(/c\s*\/\s*cpp/g, "c c++");
 
-    const lowerTarget = targetSkill.toLowerCase();
+    const normalizedText = normalize(text);
+    const lowerTarget = normalize(targetSkill);
 
     // 1. Direct match (with word boundary for short tokens)
     const isShort = lowerTarget.length <= 3;
@@ -163,6 +165,11 @@ function getRoleDomain(role: RoleData): string {
 
 function predictRole(eceScores: any, text: string) {
     const cgpa = extractCGPA(text);
+
+    // --- Experience & Seniority Detection ---
+    const isStudent = /3rd year|4th year|3rd-year|4th-year|student|intern|pursuing|undergraduate/i.test(text);
+    const graduatYearMatch = text.match(/\b(202[5-8])\b/);
+    const isJunior = isStudent || !!graduatYearMatch;
 
     // 1. Calculate Score for EACH role
     const scoredRoles = ROLES_DATA.map(roleData => {
@@ -243,11 +250,12 @@ function predictRole(eceScores: any, text: string) {
         if (nextBest) selectedRoles.push(nextBest);
     }
 
-    // Use strictly the Primary Role for Salary Prediction to anchor expectations
-    const rolesForPrediction = [selectedRoles[0]];
-
     const primaryRole = selectedRoles[0]?.role || "Unknown Role";
     const secondaryRoles = selectedRoles.slice(1).map(r => r.role);
+
+    // Role discovery improvement: Ensure high confidence or use GET fallback
+    let rolesForPrediction = [selectedRoles[0]];
+    const bestScore = selectedRoles[0]?.score || 0;
 
     // --- Weighted Salary Prediction with CGPA Boost ---
     let totalWeight = 0;
@@ -255,9 +263,19 @@ function predictRole(eceScores: any, text: string) {
     let weightedMax = 0;
 
     rolesForPrediction.forEach(role => {
-        if (role && role.score > 15) {
-            const [min, max] = parseSalaryRange(role.salary.avg);
+        if (role && (role.score > 20 || rolesForPrediction.length === 1)) {
+            let [min, max] = parseSalaryRange(role.salary.avg);
             const confidence = role.skillScore / 100;
+
+            // Experience-Aware Scaling:
+            if (isJunior) {
+                // Cap senior roles for students/interns to realistic entry levels
+                const cap = role.domain === "Software" ? 12.5 : 9.5;
+                if (max > cap) {
+                    max = cap;
+                    min = Math.min(min, cap - 2.5);
+                }
+            }
 
             // Stricter Salary Logic
             let effectiveMin = min;
@@ -265,9 +283,7 @@ function predictRole(eceScores: any, text: string) {
 
             // If low confidence, drag max down to min
             if (confidence < 0.6) {
-                effectiveMax = min + (max - min) * 0.1; // Almost no upside
-            } else if (confidence < 0.85) {
-                effectiveMax = min + (max - min) * 0.5;
+                effectiveMax = min + (max - min) * 0.2;
             }
 
             if (min > 0) {
@@ -278,12 +294,17 @@ function predictRole(eceScores: any, text: string) {
         }
     });
 
-    let predMin = totalWeight > 0 ? (weightedMin / totalWeight) : 3.0;
-    let predMax = totalWeight > 0 ? (weightedMax / totalWeight) : 4.5;
+    // Fallback if no specific role matched well (The "Hariish" Fix)
+    let predMin = totalWeight > 0 ? (weightedMin / totalWeight) : 6.0;
+    let predMax = totalWeight > 0 ? (weightedMax / totalWeight) : 8.0;
 
     // Apply "Market Reality" Stringency (0.85)
+    predMax = predMax * 0.9; // Slightly less dampening for the ceiling
     predMin = predMin * 0.85;
-    predMax = predMax * 0.85;
+
+    // --- Ceiling-Based Prediction (Target is Max) ---
+    const spread = Math.max(1.5, predMax * 0.25);
+    predMin = Math.max(3.0, predMax - spread);
 
     // **CGPA Salary Boost**
     // High CGPA (>8.5) often unlocks "Dream" status companies paying significantly more
@@ -300,7 +321,7 @@ function predictRole(eceScores: any, text: string) {
     const allRoles = selectedRoles.map(r => ({
         name: r.role,
         missingSkills: r.skills
-            .filter(k => !text.toLowerCase().includes(k.toLowerCase()))
+            .filter(k => !hasMatch(text, k))
             .slice(0, 5)
             .map(s => formatSkill(s)),
         salary: r.salary,
@@ -401,20 +422,31 @@ export function calculateATSScore(text: string, platformStats?: ATSResult['platf
     // Cap formatting
     formattingScore = Math.min(formattingScore, 100);
 
-    // --- 2. ECE Domain Scores ---
+    // --- 2. Contextual Weighting (Anti-Inflation) ---
+    // Extract text specifically from Projects and Experience for 1.5x bonus
+    const projectExpMatch = lowerText.match(/(?:experience|projects|work history|academic projects|internships)[\s\S]*?(?:skills|certifications|summary|education|$)/i);
+    const projectExpText = projectExpMatch ? projectExpMatch[0] : "";
+
     const eceScores = {
-        communication: calculateDomainScore(lowerText, ECE_DOMAINS.communication),
-        vlsi: calculateDomainScore(lowerText, ECE_DOMAINS.vlsi),
-        embedded: calculateDomainScore(lowerText, ECE_DOMAINS.embedded),
-        software: calculateDomainScore(lowerText, ECE_DOMAINS.software)
+        communication: calculateDomainScore(lowerText, ECE_DOMAINS.communication, projectExpText),
+        vlsi: calculateDomainScore(lowerText, ECE_DOMAINS.vlsi, projectExpText),
+        embedded: calculateDomainScore(lowerText, ECE_DOMAINS.embedded, projectExpText),
+        software: calculateDomainScore(lowerText, ECE_DOMAINS.software, projectExpText)
     };
 
-    // Calculate keyword score
+    // Calculate keyword score (Stricter mapping)
     const avgDomainScore = (eceScores.communication + eceScores.vlsi + eceScores.embedded + eceScores.software) / 4;
-    const keywordScore = Math.min(avgDomainScore * 2.0, 100);
+    const keywordScore = Math.min(avgDomainScore * 1.5, 100); // Reduced multiplier from 2.0 to 1.5
 
     // Total Score
-    const score = (sectionScore * 0.4) + (formattingScore * 0.3) + (keywordScore * 0.3);
+    let score = (sectionScore * 0.4) + (formattingScore * 0.3) + (keywordScore * 0.3);
+
+    // Hackathon Bonus
+    const hasHackathon = /hackathon|coding contest|ideathon/i.test(lowerText);
+    if (hasHackathon) {
+        score += 3;
+        feedback.push("Hackathon participation detected! (+3 Bonus)");
+    }
 
     // Find keywords for display
     const foundKeywords: string[] = [];
@@ -422,19 +454,15 @@ export function calculateATSScore(text: string, platformStats?: ATSResult['platf
         if (hasMatch(lowerText, k)) foundKeywords.push(formatSkill(k));
     });
 
-    // --- 3. Role Prediction ---
-    const { primaryRole, secondaryRoles, allRoles, salaryPrediction } = predictRole(eceScores, lowerText);
-
-    // --- 4. Education Parsing ---
+    // --- 3. Education Parsing ---
     const educationDetails = parseEducation(text);
 
-    // --- 5. Contact & Profile Validation (Flexible URLs) ---
+    // --- 4. Contact & Profile Validation (Flexible URLs) ---
     const extractUrl = (pattern: RegExp) => {
         const match = text.match(pattern);
         return match ? match[0].trim() : undefined;
     };
 
-    // More flexible regexes for profiles
     const linkedinUrl = extractUrl(/(?:https?:\/\/)?(?:www\.)?linkedin\.com\/in\/[\w\-\_]+\/?/i) || extractedLinks.find(l => l.includes("linkedin.com/in/"));
     const githubUrl = extractUrl(/(?:https?:\/\/)?(?:www\.)?github\.com\/[\w\-\_]+\/?/i) || extractedLinks.find(l => l.includes("github.com/"));
     const leetcodeUrl = extractUrl(/(?:https?:\/\/)?(?:www\.)?leetcode\.com\/[\w\-\_]+\/?/i) || extractedLinks.find(l => l.includes("leetcode.com/"));
@@ -455,36 +483,39 @@ export function calculateATSScore(text: string, platformStats?: ATSResult['platf
         }
     };
 
-    // --- 6. Platform Bonus Scoring ---
+    // --- 5. Platform Bonus Scoring (NOW BEFORE ROLE PREDICTION) ---
     let extraSoftwarePoints = 0;
     let extraVLSIPoints = 0;
 
     if (platformStats?.leetcode && platformStats.leetcode.totalSolved > 0) {
-        const { totalSolved, mediumSolved, hardSolved } = platformStats.leetcode;
-        // Logic: Easy=0.05, Medium=0.1, Hard=0.2 (capped at 25 points)
+        const { totalSolved, easySolved, mediumSolved, hardSolved } = platformStats.leetcode;
+        // Boosted Logic: Hard=1.0, Medium=0.3, Easy=0.1
         extraSoftwarePoints = Math.min(
-            (platformStats.leetcode.easySolved * 0.05) +
-            (mediumSolved * 0.2) +
-            (hardSolved * 0.5),
-            25
+            (easySolved * 0.1) +
+            (mediumSolved * 0.3) +
+            (hardSolved * 1.0),
+            30
         );
 
-        feedback.push(`LeetCode Verified: ${totalSolved} solved (${mediumSolved} Med, ${hardSolved} Hard). +${Math.round(extraSoftwarePoints)} points to Software.`);
+        feedback.push(`LeetCode Verified: ${totalSolved} solved (+${Math.round(extraSoftwarePoints)} Skill points).`);
     }
 
     if (platformStats?.hdlbits?.solvedCount && platformStats.hdlbits.solvedCount > 0) {
         const solved = platformStats.hdlbits.solvedCount;
-        // Logic: 0.3 points per solved problem (capped at 20 points)
-        extraVLSIPoints = Math.min(solved * 0.3, 20);
+        // Boosted Logic: 0.5 points per solved problem (capped at 30 points)
+        extraVLSIPoints = Math.min(solved * 0.5, 30);
 
         eceScores.vlsi = Math.min(eceScores.vlsi + extraVLSIPoints, 100);
-        feedback.push(`HDLBits Verified: ${solved} problems solved. +${Math.round(extraVLSIPoints)} points to VLSI.`);
+        feedback.push(`HDLBits Verified: ${solved} solved (+${Math.round(extraVLSIPoints)} Skill points to VLSI).`);
     } else if (contactValidation.hdlbits) {
-        feedback.push("HDLBits profile found but stats could not be verified. Solve more problems to earn a bonus!");
+        feedback.push("HDLBits profile found but stats could not be verified.");
     }
 
     // Apply software bonus
     eceScores.software = Math.min(eceScores.software + extraSoftwarePoints, 100);
+
+    // --- 6. Role Prediction (Using augmented eceScores) ---
+    const { primaryRole, secondaryRoles, allRoles, salaryPrediction } = predictRole(eceScores, lowerText);
 
     // Recalculate keyword/total score with bonuses
     const finalKeywordScore = Math.min(keywordScore + (extraSoftwarePoints + extraVLSIPoints) / 2, 100);
@@ -511,10 +542,21 @@ export function calculateATSScore(text: string, platformStats?: ATSResult['platf
 }
 
 // Helper for domain scores
-function calculateDomainScore(text: string, keywords: string[]): number {
-    let count = 0;
-    keywords.forEach(k => { if (hasMatch(text, k)) count++; });
-    return Math.min(Math.round((count / 15) * 100), 100); // Harder difficulty (15 keywords required for 100%)
+// Helper for domain scores with contextual weighting
+function calculateDomainScore(text: string, keywords: string[], projectExpText: string = ""): number {
+    let rawScore = 0;
+    keywords.forEach(k => {
+        if (hasMatch(text, k)) {
+            // Context Bonus: Keywords in Projects/Experience count 1.5x
+            if (projectExpText && hasMatch(projectExpText, k)) {
+                rawScore += 1.5;
+            } else {
+                rawScore += 1.0;
+            }
+        }
+    });
+    // Harder difficulty: 20 technical units required for 100%
+    return Math.min(Math.round((rawScore / 20) * 100), 100);
 }
 
 // Skill Display Mapping
