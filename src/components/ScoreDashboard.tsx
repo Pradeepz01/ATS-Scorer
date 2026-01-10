@@ -1,134 +1,150 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { CheckCircle, AlertTriangle, XCircle, Layout, Key, FileText } from "lucide-react";
+import { Check, AlertCircle, Award, FileText, Zap, BookOpen } from "lucide-react";
 import { ATSResult } from "@/lib/scoring";
 import { cn } from "@/lib/utils";
+import SkillRadar from "./SkillRadar";
+import RolePredictor from "./RolePredictor";
+import ContactChecklist from "./ContactChecklist";
+import DomainAnalysis from "./DomainAnalysis";
 
-export default function ScoreDashboard({ result }: { result: ATSResult }) {
-    const getScoreColor = (score: number) => {
-        if (score >= 80) return "text-green-500";
-        if (score >= 60) return "text-yellow-500";
-        return "text-red-500";
+interface ScoreDashboardProps {
+    analysis: ATSResult;
+    onReset: () => void;
+}
+
+export default function ScoreDashboard({ analysis, onReset }: ScoreDashboardProps) {
+    const { score, details, missingSections, feedback, eceScores, rolePrediction, domainAnalysis, contactValidation } = analysis;
+
+    const getScoreColor = (s: number) => {
+        if (s >= 80) return "text-green-500";
+        if (s >= 50) return "text-yellow-500";
+        return "text-destructive";
     };
 
-    const getProgressColor = (score: number) => {
-        if (score >= 80) return "bg-green-500";
-        if (score >= 60) return "bg-yellow-500";
-        return "bg-red-500";
+    const getScoreLabel = (s: number) => {
+        if (s >= 80) return "Excellent";
+        if (s >= 50) return "Needs Improvement";
+        return "Critical Issues";
     };
 
     return (
-        <div className="w-full max-w-4xl mx-auto mt-12 space-y-8 animate-in fade-in slide-in-from-bottom-5 duration-700">
-            {/* Score Header */}
-            <div className="text-center space-y-2">
-                <h2 className="text-3xl font-bold">ATS Compatibility Score</h2>
-                <p className="text-muted-foreground">Based on typical tracking system algorithms</p>
-            </div>
+        <div className="w-full max-w-6xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-5 duration-700">
+            <div className="flex flex-col md:flex-row gap-8 items-start">
 
-            {/* Main Score Gauge */}
-            <div className="flex justify-center py-8">
-                <div className="relative w-48 h-48 flex items-center justify-center">
-                    {/* Background Circle */}
-                    <svg className="absolute w-full h-full transform -rotate-90">
-                        <circle
-                            cx="96"
-                            cy="96"
-                            r="88"
-                            stroke="currentColor"
-                            strokeWidth="12"
-                            fill="transparent"
-                            className="text-muted/20"
-                        />
-                        {/* Progress Circle */}
-                        <motion.circle
-                            cx="96"
-                            cy="96"
-                            r="88"
-                            stroke="currentColor"
-                            strokeWidth="12"
-                            fill="transparent"
-                            strokeLinecap="round"
-                            className={cn("transition-colors duration-500", getScoreColor(result.score))}
-                            initial={{ strokeDasharray: "553", strokeDashoffset: "553" }}
-                            animate={{ strokeDashoffset: String(553 - (553 * result.score) / 100) }}
-                            transition={{ duration: 1.5, ease: "easeOut" }}
-                        />
-                    </svg>
-                    <div className="text-center">
-                        <motion.span
-                            className={cn("text-5xl font-bold", getScoreColor(result.score))}
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            transition={{ delay: 0.5 }}
-                        >
-                            {result.score}%
-                        </motion.span>
+                {/* LEFT COLUMN: Score & Core Metrics */}
+                <div className="w-full md:w-1/3 space-y-6">
+                    {/* Main Score Card */}
+                    <div className="bg-card/50 backdrop-blur-md border border-border rounded-xl p-8 text-center shadow-lg relative overflow-hidden group">
+                        <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                        <h2 className="text-lg font-medium text-muted-foreground mb-4">ATS Compatibility Score</h2>
+                        <div className="relative inline-flex items-center justify-center">
+                            <svg className="w-40 h-40 transform -rotate-90">
+                                <circle
+                                    className="text-muted/20"
+                                    strokeWidth="8"
+                                    stroke="currentColor"
+                                    fill="transparent"
+                                    r="70"
+                                    cx="80"
+                                    cy="80"
+                                />
+                                <motion.circle
+                                    className={cn(getScoreColor(score))}
+                                    strokeWidth="8"
+                                    strokeDasharray={440}
+                                    strokeDashoffset={440 - (440 * score) / 100}
+                                    strokeLinecap="round"
+                                    stroke="currentColor"
+                                    fill="transparent"
+                                    r="70"
+                                    cx="80"
+                                    cy="80"
+                                    initial={{ strokeDashoffset: 440 }}
+                                    animate={{ strokeDashoffset: 440 - (440 * score) / 100 }}
+                                    transition={{ duration: 1.5, ease: "easeOut" }}
+                                />
+                            </svg>
+                            <div className="absolute flex flex-col items-center">
+                                <span className={cn("text-4xl font-bold", getScoreColor(score))}>{score}</span>
+                                <span className="text-xs text-muted-foreground uppercase tracking-widest mt-1">/ 100</span>
+                            </div>
+                        </div>
+                        <p className={cn("mt-4 font-semibold text-lg", getScoreColor(score))}>
+                            {getScoreLabel(score)}
+                        </p>
                     </div>
+
+                    {/* Breakdown Stats */}
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="bg-card/30 p-4 rounded-lg border border-border/50">
+                            <div className="text-muted-foreground text-xs uppercase mb-1">Sections</div>
+                            <div className="text-xl font-bold">{Math.round(details.sectionScore)}/40</div>
+                        </div>
+                        <div className="bg-card/30 p-4 rounded-lg border border-border/50">
+                            <div className="text-muted-foreground text-xs uppercase mb-1">Context</div>
+                            <div className="text-xl font-bold">{Math.round(details.keywordScore)}/30</div>
+                        </div>
+                        <div className="bg-card/30 p-4 rounded-lg border border-border/50">
+                            <div className="text-muted-foreground text-xs uppercase mb-1">Format</div>
+                            <div className="text-xl font-bold">{Math.round(details.formattingScore)}/30</div>
+                        </div>
+                    </div>
+
+                    {/* NEW: Domain Analysis */}
+                    {domainAnalysis && <DomainAnalysis data={domainAnalysis} />}
                 </div>
-            </div>
 
-            {/* Breakdown Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <MetricCard
-                    icon={<Layout className="w-5 h-5 text-blue-500" />}
-                    title="Sections"
-                    score={Math.round((result.details.sectionScore / 40) * 100)} // Normalize to %
-                    description="Presence of key resume sections"
-                />
-                <MetricCard
-                    icon={<Key className="w-5 h-5 text-purple-500" />}
-                    title="Keywords"
-                    score={Math.round((result.details.keywordScore / 30) * 100)}
-                    description="Action verbs and role relevance"
-                />
-                <MetricCard
-                    icon={<FileText className="w-5 h-5 text-orange-500" />}
-                    title="Formatting"
-                    score={Math.round((result.details.formattingScore / 30) * 100)}
-                    description="Layout and readability"
-                />
-            </div>
+                {/* MIDDLE COLUMN: ECE Specifics */}
+                <div className="w-full md:w-1/3 space-y-6">
+                    {/* NEW: Radar Chart */}
+                    {eceScores && <SkillRadar scores={eceScores} />}
 
-            {/* Detailed Feedback */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-8">
-                <div className="bg-card border rounded-xl p-6 shadow-sm">
-                    <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                        <CheckCircle className="w-5 h-5 text-green-500" />
-                        Wait, Found Sections
-                    </h3>
-                    <p className="text-sm text-muted-foreground mb-4">Core sections detected in your resume:</p>
-                    <div className="flex flex-wrap gap-2">
-                        {["Experience", "Education", "Skills", "Summary", "Contact"]
-                            .filter(s => !result.missingSections.includes(s))
-                            .map((s) => (
-                                <span key={s} className="px-3 py-1 bg-green-500/10 text-green-700 dark:text-green-300 rounded-full text-xs font-medium">
-                                    {s}
-                                </span>
+                    {/* NEW: Contact Checklist */}
+                    {contactValidation && <ContactChecklist validation={contactValidation} />}
+                </div>
+
+                {/* RIGHT COLUMN: Roles & Action Items */}
+                <div className="w-full md:w-1/3 space-y-6">
+                    {/* NEW: Role Predictor */}
+                    {rolePrediction && <RolePredictor prediction={rolePrediction} />}
+
+                    {/* Improvement Suggestions */}
+                    <div className="bg-card/50 backdrop-blur-md border border-border rounded-xl p-6 shadow-sm">
+                        <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                            <FileText className="w-5 h-5 text-primary" />
+                            Action Items
+                        </h3>
+                        <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
+                            {missingSections.length > 0 && (
+                                <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-lg">
+                                    <h4 className="font-medium text-destructive text-sm mb-1 flex items-center gap-2">
+                                        <AlertCircle className="w-4 h-4" /> Missing Sections
+                                    </h4>
+                                    <ul className="text-xs text-muted-foreground list-disc list-inside">
+                                        {missingSections.map((s) => <li key={s}>{s}</li>)}
+                                    </ul>
+                                </div>
+                            )}
+                            {feedback.map((item, idx) => (
+                                <div key={idx} className="flex gap-3 text-sm text-muted-foreground p-2 hover:bg-muted/50 rounded transition-colors">
+                                    <div className="mt-1 min-w-[4px] h-4 bg-primary rounded-full" />
+                                    <p>{item}</p>
+                                </div>
                             ))}
+                        </div>
                     </div>
                 </div>
+            </div>
 
-                <div className="bg-card border rounded-xl p-6 shadow-sm">
-                    <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                        <AlertTriangle className="w-5 h-5 text-yellow-500" />
-                        Improvements
-                    </h3>
-                    <ul className="space-y-3">
-                        {result.feedback.map((item, i) => (
-                            <li key={i} className="flex items-start gap-3 text-sm text-foreground/80">
-                                <span className="mt-0.5">•</span>
-                                <span>{item}</span>
-                            </li>
-                        ))}
-                        {result.missingSections.length > 0 && (
-                            <li className="flex items-start gap-3 text-sm text-foreground/80">
-                                <span className="mt-0.5">•</span>
-                                <span>Consider adding missing sections: {result.missingSections.join(", ")}</span>
-                            </li>
-                        )}
-                    </ul>
-                </div>
+            <div className="flex justify-center pt-8">
+                <button
+                    onClick={onReset}
+                    className="px-8 py-3 rounded-full bg-primary text-primary-foreground font-medium hover:bg-primary/90 transition-all shadow-lg hover:shadow-primary/25 active:scale-95"
+                >
+                    Analyze Another Resume
+                </button>
             </div>
         </div>
     );
