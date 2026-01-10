@@ -52,15 +52,32 @@ async function main() {
         const pdfDocument = await loadingTask.promise;
 
         let fullText = "";
+        let extractedLinks = [];
+
         for (let i = 1; i <= pdfDocument.numPages; i++) {
             const page = await pdfDocument.getPage(i);
+
+            // 1. Extract Text
             const textContent = await page.getTextContent();
             const pageText = textContent.items.map(item => item.str).join(" ");
             fullText += pageText + "\n";
+
+            // 2. Extract Hyperlinks (Annotations)
+            const annotations = await page.getAnnotations();
+            for (const annotation of annotations) {
+                if (annotation.subtype === 'Link' && annotation.url) {
+                    extractedLinks.push(annotation.url);
+                }
+            }
         }
 
         // Output JSON result to stdout
-        console.log(JSON.stringify({ success: true, text: fullText, pages: pdfDocument.numPages }));
+        console.log(JSON.stringify({
+            success: true,
+            text: fullText,
+            pages: pdfDocument.numPages,
+            links: extractedLinks
+        }));
     } catch (error) {
         console.error("Parsing Error:", error);
         console.log(JSON.stringify({ success: false, error: error.message }));

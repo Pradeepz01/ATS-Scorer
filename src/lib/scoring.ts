@@ -1,3 +1,5 @@
+import { ROLES_DATA, RoleData } from "./roles_data";
+
 export interface ATSResult {
     score: number;
     details: {
@@ -19,21 +21,48 @@ export interface ATSResult {
     rolePrediction: {
         primaryRole: string;
         secondaryRoles: string[];
-        // missingSkills: string[]; // Deprecated, use allRoles
-        allRoles: { name: string; missingSkills: string[] }[];
+        allRoles: {
+            name: string;
+            missingSkills: string[];
+            salary: RoleData['salary'];
+            companies: string[];
+            description: string;
+        }[];
+        salaryPrediction: {
+            min: number;
+            max: number;
+        };
     };
-    domainAnalysis: {
-        digital: number; // percentage
-        analog: number; // percentage
-        explanation: string;
+    educationDetails?: {
+        college: string;
+        batch: string;
     };
     contactValidation: {
         email: boolean;
         phone: boolean;
         linkedin: boolean;
         github: boolean;
-        hdlbits: boolean; // optional
-        leetcode: boolean; // optional
+        hdlbits: boolean;
+        leetcode: boolean;
+        urls: {
+            linkedin?: string;
+            github?: string;
+            leetcode?: string;
+            hdlbits?: string;
+        };
+    };
+    platformStats?: {
+        leetcode?: {
+            totalSolved: number;
+            easySolved: number;
+            mediumSolved: number;
+            hardSolved: number;
+            ranking: number;
+            contributionPoints: number;
+        };
+        hdlbits?: {
+            solvedCount?: number; // If we can find it
+        };
     };
 }
 
@@ -41,7 +70,7 @@ const COMMON_SECTIONS = [
     "Experience", "Work History", "Education", "Skills", "Summary", "Profile", "Projects", "Certifications"
 ];
 
-// ECE Domain Keywords
+// ECE Domain Keywords (Kept for basic eceScores calculation)
 const ECE_DOMAINS = {
     communication: ["signal processing", "dsp", "matlab", "fft", "filters", "wireless", "5g", "lte", "modulation", "communication systems", "rf", "antenna", "spectrum"],
     vlsi: ["verilog", "vhdl", "rtl", "systemverilog", "fpga", "asic", "vivado", "quartus", "cadence", "virtuoso", "synopsys", "layout", "cmos", "mosfet", "digital design", "timing analysis"],
@@ -49,53 +78,330 @@ const ECE_DOMAINS = {
     software: ["python", "c++", "data structures", "algorithms", "oops", "java", "sql", "machine learning", "ai", "tensorflow", "pytorch", "web development", "react", "node"]
 };
 
-// Domain Classification for Digital vs Analog
-const ANALOG_KEYWORDS = ["analog", "rf", "antenna", "circuit design", "layout", "cmos", "opamp", "amplifiers", "pcb", "ltspice", "noise", "power electronics"];
-const DIGITAL_KEYWORDS = ["digital", "fpga", "verilog", "vhdl", "rtl", "processor", "architecture", "logic", "microcontroller", "embedded", "timing", "memory"];
+// Semantic Skill/Alias Mapping
+const SKILL_ALIASES: Record<string, string[]> = {
+    // Embedded
+    "microcontroller programming": ["esp32", "esp8266", "stm32", "arduino", "pic", "avr", "8051", "atmel", "microcontroller", "mcu", "node mcu"],
+    "rtos": ["freertos", "vxworks", "zephyr", "micrium", "real-time operating system", "embos"],
+    "iot": ["internet of things", "mqtt", "lora", "nodemcu", "thinkspeak", "adafruit io"],
+    "embedded c": ["c programming", "low level c", "bare metal"],
 
-export function calculateATSScore(text: string): ATSResult {
-    let score = 0;
-    const lowerText = text.toLowerCase();
-    const feedback: string[] = [];
-    const foundKeywords: string[] = [];
+    // VLSI
+    "verilog": ["hdl", "rtl coding", "hdl programming"],
+    "vhdl": ["hdl", "rtl coding"],
+    "digital design": ["logic design", "combinational logic", "sequential logic"],
+    "eda tools": ["vivado", "quartus", "cadence", "virtuoso", "synopsys", "modelsim", "xilinx", "altera"],
 
-    // --- 1. General ATS Logic (Existing) ---
-    let sectionCount = 0;
-    const missingSections: string[] = [];
-    const sectionsToCheck = [
-        { name: "Experience", keywords: ["experience", "work history", "employment", "internship"] },
-        { name: "Education", keywords: ["education", "academic", "degree", "b.tech", "b.e"] },
-        { name: "Skills", keywords: ["skills", "technical skills", "competencies"] },
-        { name: "Projects", keywords: ["projects", "academic projects", "capstone"] }
-    ];
+    // Communication
+    "signal processing": ["dsp", "fft", "filtering", "sampling", "convolution", "transforms"],
+    "matlab": ["simulink", "octave"],
+    "wireless": ["5g", "lte", "rf", "antenna", "modulation", "demodulation", "wi-fi", "bluetooth", "lorawan"],
 
-    sectionsToCheck.forEach(section => {
-        if (section.keywords.some(k => lowerText.includes(k))) sectionCount++;
-        else missingSections.push(section.name);
+    // Programming
+    "python": ["numPy", "pandas", "matplotlib", "scripting"],
+    "machine learning": ["deep learning", "neural networks", "ai", "tensorflow", "pytorch", "scikit-learn", "keras"],
+    "c++": ["cpp", "v/c++", "object oriented programming"]
+};
+
+// Helper to check if a skill (or its aliases) exists in text
+function hasMatch(text: string, targetSkill: string): boolean {
+    const normalizedText = text.toLowerCase()
+        .replace(/c\s*[\/\,]\s*c\+\+/g, "c c++") // Handle C/C++
+        .replace(/\bc\b\s*[\/\,]\s*\bc\+\+\b/g, "c c++");
+
+    const lowerTarget = targetSkill.toLowerCase();
+
+    // 1. Direct match (with word boundary for short tokens)
+    const isShort = lowerTarget.length <= 3;
+    if (isShort) {
+        const regex = new RegExp(`\\b${lowerTarget.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+        if (regex.test(normalizedText)) return true;
+    } else {
+        if (normalizedText.includes(lowerTarget)) return true;
+    }
+
+    // 2. Alias match
+    const aliases = SKILL_ALIASES[lowerTarget];
+    if (aliases) {
+        for (const alias of aliases) {
+            const lowerAlias = alias.toLowerCase();
+            const aliasIsShort = lowerAlias.length <= 3;
+            if (aliasIsShort) {
+                const regex = new RegExp(`\\b${lowerAlias.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+                if (regex.test(normalizedText)) return true;
+            } else {
+                if (normalizedText.includes(lowerAlias)) return true;
+            }
+        }
+    }
+
+    return false;
+}
+
+// Helper to extract batch/education (flexible naming)
+function extractCGPA(text: string): number {
+    const cgpaRegex = /(?:cgpa|gpa|score)\s*[:=-]?\s*(\d+(?:\.\d+)?)/i;
+    const match = text.match(cgpaRegex);
+    if (match) {
+        const val = parseFloat(match[1]);
+        if (val <= 10) return val;
+        if (val <= 100) return val / 10; // Convert percentage to 10 scale
+    }
+    return 0;
+}
+
+// Helper to map roles to our 4 radar domains
+function getRoleDomain(role: RoleData): string {
+    const title = role.role.toLowerCase();
+    const domain = role.domain.toLowerCase();
+    if (domain.includes("software") || title.includes("full-stack") || title.includes("web dev")) return "software";
+    if (title.includes("embedded") || title.includes("firmware") || title.includes("iot") || title.includes("microcontroller") || title.includes("rtos")) return "embedded";
+    if (title.includes("vlsi") || title.includes("asic") || title.includes("rtl") || title.includes("fpga") || title.includes("physical design") || title.includes("verification") || title.includes("digital design") || title.includes("dft")) return "vlsi";
+    if (title.includes("communication") || title.includes("rf") || title.includes("antenna") || title.includes("wireless") || title.includes("dsp") || title.includes("signal processing")) return "communication";
+    return "core";
+}
+
+function predictRole(eceScores: any, text: string) {
+    const cgpa = extractCGPA(text);
+
+    // 1. Calculate Score for EACH role
+    const scoredRoles = ROLES_DATA.map(roleData => {
+        const rDomain = getRoleDomain(roleData);
+
+        let domainScore = 0;
+        if (rDomain === "software") domainScore = eceScores.software;
+        else if (rDomain === "embedded") domainScore = eceScores.embedded;
+        else if (rDomain === "vlsi") domainScore = eceScores.vlsi;
+        else if (rDomain === "communication") domainScore = eceScores.communication;
+        else domainScore = Math.max(eceScores.vlsi, eceScores.embedded);
+
+        // **Aggressive Software Bias Fix**
+        if (rDomain === "software" && (eceScores.embedded > 30 || eceScores.vlsi > 30 || eceScores.communication > 30)) {
+            domainScore *= 0.4;
+        }
+
+        // Skill match (60%) using semantic engine
+        let skillMatchCount = 0;
+        roleData.skills.forEach(skill => {
+            if (hasMatch(text, skill)) skillMatchCount++;
+        });
+
+        const skillScore = (skillMatchCount / roleData.skills.length) * 100;
+        const totalScore = (domainScore * 0.4) + (skillScore * 0.6);
+
+        return { ...roleData, score: totalScore, skillScore, rDomain };
     });
-    const sectionScore = (sectionCount / sectionsToCheck.length) * 40;
-    score += sectionScore;
 
-    // Keyword check (simplified for general score)
-    const allECEKeywords = [...ECE_DOMAINS.vlsi, ...ECE_DOMAINS.embedded, ...ECE_DOMAINS.communication, ...ECE_DOMAINS.software];
-    let keywordCount = 0;
-    allECEKeywords.forEach(k => {
-        if (lowerText.includes(k)) {
-            keywordCount++;
-            foundKeywords.push(k);
+    // 2. Sort by score
+    scoredRoles.sort((a, b) => b.score - a.score);
+
+    // 3. Selection Strategy (Strict Domain Hierarchy)
+    const selectedRoles: typeof scoredRoles = [];
+
+    // Rank User's Domains with heavy bias against Software for ECE radar
+    const rankedDomains = [
+        { name: "communication", score: eceScores.communication },
+        { name: "embedded", score: eceScores.embedded },
+        { name: "vlsi", score: eceScores.vlsi },
+        { name: "software", score: eceScores.software * 0.5 } // 50% dampener for selection
+    ].sort((a, b) => b.score - a.score);
+
+    // Helper to find best role in a specific domain
+    const findBestRole = (domainName: string, excludeRoles: typeof scoredRoles) => {
+        return scoredRoles.find(r =>
+            (r as any).rDomain === domainName &&
+            !excludeRoles.includes(r) &&
+            r.score > 10 // Lowered threshold slightly to ensure match
+        );
+    };
+
+    // Slot 1: Primary Domain (Strictly follows Radar Chart)
+    const slot1 = findBestRole(rankedDomains[0].name, selectedRoles);
+    if (slot1) selectedRoles.push(slot1);
+    else if (scoredRoles.length > 0) selectedRoles.push(scoredRoles[0]);
+
+    // Slot 2: Secondary Domain
+    const slot2 = rankedDomains[1].score > 20
+        ? findBestRole(rankedDomains[1].name, selectedRoles)
+        : findBestRole(rankedDomains[0].name, selectedRoles);
+
+    if (slot2) selectedRoles.push(slot2);
+    else {
+        const nextBest = scoredRoles.find(r => !selectedRoles.includes(r));
+        if (nextBest) selectedRoles.push(nextBest);
+    }
+
+    // Slot 3: Tertiary Domain
+    const slot3 = rankedDomains[2].score > 20
+        ? findBestRole(rankedDomains[2].name, selectedRoles)
+        : null;
+
+    if (slot3) selectedRoles.push(slot3);
+    else {
+        // Fallback: Next best overall
+        const nextBest = scoredRoles.find(r => !selectedRoles.includes(r));
+        if (nextBest) selectedRoles.push(nextBest);
+    }
+
+    // Use strictly the Primary Role for Salary Prediction to anchor expectations
+    const rolesForPrediction = [selectedRoles[0]];
+
+    const primaryRole = selectedRoles[0]?.role || "Unknown Role";
+    const secondaryRoles = selectedRoles.slice(1).map(r => r.role);
+
+    // --- Weighted Salary Prediction with CGPA Boost ---
+    let totalWeight = 0;
+    let weightedMin = 0;
+    let weightedMax = 0;
+
+    rolesForPrediction.forEach(role => {
+        if (role && role.score > 15) {
+            const [min, max] = parseSalaryRange(role.salary.avg);
+            const confidence = role.skillScore / 100;
+
+            // Stricter Salary Logic
+            let effectiveMin = min;
+            let effectiveMax = max;
+
+            // If low confidence, drag max down to min
+            if (confidence < 0.6) {
+                effectiveMax = min + (max - min) * 0.1; // Almost no upside
+            } else if (confidence < 0.85) {
+                effectiveMax = min + (max - min) * 0.5;
+            }
+
+            if (min > 0) {
+                weightedMin += effectiveMin;
+                weightedMax += effectiveMax;
+                totalWeight += 1;
+            }
         }
     });
-    const keywordScore = Math.min(keywordCount, 20) * 1.5; // Max 30
-    score += keywordScore;
 
-    // Formatting
-    let formattingScore = 0;
-    const wordCount = text.split(/\s+/).length;
-    if (wordCount > 150 && wordCount < 1500) formattingScore += 15;
-    if (text.includes("•") || text.includes("- ") || text.includes("* ")) formattingScore += 15;
-    score += formattingScore;
+    let predMin = totalWeight > 0 ? (weightedMin / totalWeight) : 3.0;
+    let predMax = totalWeight > 0 ? (weightedMax / totalWeight) : 4.5;
 
-    // --- 2. ECE Domain Scores (Radar Chart) ---
+    // Apply "Market Reality" Stringency (0.85)
+    predMin = predMin * 0.85;
+    predMax = predMax * 0.85;
+
+    // **CGPA Salary Boost**
+    // High CGPA (>8.5) often unlocks "Dream" status companies paying significantly more
+    if (cgpa >= 8.5) {
+        predMax *= 1.25; // 25% boost to potential max
+        predMin *= 1.1;  // 10% boost to base
+    } else if (cgpa >= 7.5) {
+        predMax *= 1.1; // 10% boost
+    }
+
+    // ---------------------------------------
+
+    // 4. Format for UI
+    const allRoles = selectedRoles.map(r => ({
+        name: r.role,
+        missingSkills: r.skills
+            .filter(k => !text.toLowerCase().includes(k.toLowerCase()))
+            .slice(0, 5)
+            .map(s => formatSkill(s)),
+        salary: r.salary,
+        companies: r.companies,
+        description: r.description
+    }));
+
+    return {
+        primaryRole,
+        secondaryRoles,
+        allRoles,
+        salaryPrediction: {
+            min: parseFloat(predMin.toFixed(1)),
+            max: parseFloat(predMax.toFixed(1))
+        }
+    };
+}
+
+const ACTION_VERBS = ["developed", "managed", "created", "led", "designed", "implemented", "optimized", "built", "engineered", "maintained", "collaborated"];
+
+export function calculateATSScore(text: string, platformStats?: ATSResult['platformStats'], extractedLinks: string[] = []) {
+    const lowerText = text.toLowerCase();
+
+    // ... (existing section extraction) ...
+    // Note: Since I'm replacing a function block, I need to be careful with context.
+    // Re-implementing parts of calculateATSScore to add feedback rules.
+
+    // --- 1. Flexible Scoring ---
+    // Updated heuristics to be more forgiving/inclusive of different terminologies
+    const sections = {
+        experience: /experience|work history|internship|internships|training|industrial exposure/i.test(lowerText),
+        education: /education|academic|qualification|b\.?e|b\.?tech|bachelor|university|college|institute|degree/i.test(lowerText),
+        skills: /skills|technologies|proficiencies|technical stack|competencies/i.test(lowerText),
+        projects: /projects|capstone|academic projects/i.test(lowerText),
+        summary: /summary|profile|objective|about/i.test(lowerText),
+        certifications: /certifications|certificates|courses|achievements/i.test(lowerText)
+    };
+
+    const missingSections = Object.entries(sections)
+        .filter(([_, present]) => !present)
+        .map(([key]) => key.charAt(0).toUpperCase() + key.slice(1));
+
+    let sectionScore = 0;
+    if (sections.experience) sectionScore += 25;
+    if (sections.education) sectionScore += 20;
+    if (sections.skills) sectionScore += 20;
+    if (sections.projects) sectionScore += 25;
+    if (sections.summary) sectionScore += 5;
+    if (sections.certifications) sectionScore += 5;
+
+    // Formatting checks
+    let formattingScore = 60;
+
+    // Check for "Action Verbs"
+    let actionVerbCount = 0;
+    ACTION_VERBS.forEach(verb => {
+        if (lowerText.includes(verb)) actionVerbCount++;
+    });
+
+    let feedback: string[] = [];
+    if (actionVerbCount >= 3) formattingScore += 10;
+    else feedback.push("Use more strong action verbs (e.g., Developed, Engineered, Optimized).");
+
+    if (actionVerbCount >= 5) formattingScore += 10;
+
+    // Check contact info explicitly for feedback
+    const hasEmail = /([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9_-]+)/.test(text);
+    const hasPhone = /(\+?\d{1,3}[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}/.test(text) || /\d{10}/.test(text);
+
+    if (!hasEmail) feedback.push("Email address missing or not detected.");
+    if (!hasPhone) feedback.push("Phone number missing or not detected.");
+
+    // Keyword Stuffing Check
+    const keywordCounts: Record<string, number> = {};
+    const words = lowerText.split(/\s+/);
+    words.forEach(w => {
+        if (w.length > 4) {
+            keywordCounts[w] = (keywordCounts[w] || 0) + 1;
+        }
+    });
+
+    let stuffingDetected = false;
+    Object.entries(keywordCounts).forEach(([k, v]) => {
+        if (v > 15 && !["development", "engineer", "project"].includes(k)) {
+            stuffingDetected = true;
+            feedback.push(`Potential keyword stuffing detected for "${k}". Keep repetition low.`);
+        }
+    });
+    if (!stuffingDetected) formattingScore += 10;
+
+    // Length check
+    const wordCount = words.length;
+    let lengthScore = 100;
+    if (wordCount < 200) { lengthScore = 60; formattingScore -= 10; feedback.push("Resume is too short. Add more detail."); }
+    else if (wordCount > 1200) { lengthScore = 80; formattingScore -= 10; feedback.push("Resume is too long. Try to keep it concise."); }
+    else { formattingScore += 10; }
+
+    // Cap formatting
+    formattingScore = Math.min(formattingScore, 100);
+
+    // --- 2. ECE Domain Scores ---
     const eceScores = {
         communication: calculateDomainScore(lowerText, ECE_DOMAINS.communication),
         vlsi: calculateDomainScore(lowerText, ECE_DOMAINS.vlsi),
@@ -103,56 +409,115 @@ export function calculateATSScore(text: string): ATSResult {
         software: calculateDomainScore(lowerText, ECE_DOMAINS.software)
     };
 
+    // Calculate keyword score
+    const avgDomainScore = (eceScores.communication + eceScores.vlsi + eceScores.embedded + eceScores.software) / 4;
+    const keywordScore = Math.min(avgDomainScore * 2.0, 100);
+
+    // Total Score
+    const score = (sectionScore * 0.4) + (formattingScore * 0.3) + (keywordScore * 0.3);
+
+    // Find keywords for display
+    const foundKeywords: string[] = [];
+    Object.values(ECE_DOMAINS).flat().forEach(k => {
+        if (hasMatch(lowerText, k)) foundKeywords.push(formatSkill(k));
+    });
+
     // --- 3. Role Prediction ---
-    const { primaryRole, secondaryRoles, allRoles } = predictRole(eceScores, lowerText);
+    const { primaryRole, secondaryRoles, allRoles, salaryPrediction } = predictRole(eceScores, lowerText);
 
-    // --- 4. Digital vs Analog Analysis ---
-    const analogScore = calculateDomainScore(lowerText, ANALOG_KEYWORDS);
-    const digitalScore = calculateDomainScore(lowerText, DIGITAL_KEYWORDS);
-    const totalDomain = analogScore + digitalScore || 1;
-    const analogPercent = Math.round((analogScore / totalDomain) * 100);
-    const digitalPercent = Math.round((digitalScore / totalDomain) * 100);
+    // --- 4. Education Parsing ---
+    const educationDetails = parseEducation(text);
 
-    let domainExplanation = "Balanced profile.";
-    if (digitalPercent > 70) domainExplanation = "Strong Digital/Logic Design focus.";
-    else if (analogPercent > 70) domainExplanation = "Strong Analog/Hardware Design focus.";
-
-    // --- 5. Contact Validation ---
-    const contactValidation = {
-        email: /([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9_-]+)/.test(text),
-        phone: /(\+?\d{1,3}[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}/.test(text) || /\d{10}/.test(text),
-        linkedin: /linkedin\.com\/in\/[\w-]+/.test(lowerText),
-        github: /github\.com\/[\w-]+/.test(lowerText),
-        hdlbits: lowerText.includes("hdlbits"),
-        leetcode: lowerText.includes("leetcode")
+    // --- 5. Contact & Profile Validation (Flexible URLs) ---
+    const extractUrl = (pattern: RegExp) => {
+        const match = text.match(pattern);
+        return match ? match[0].trim() : undefined;
     };
 
-    // Adjust final feedback
+    // More flexible regexes for profiles
+    const linkedinUrl = extractUrl(/(?:https?:\/\/)?(?:www\.)?linkedin\.com\/in\/[\w\-\_]+\/?/i) || extractedLinks.find(l => l.includes("linkedin.com/in/"));
+    const githubUrl = extractUrl(/(?:https?:\/\/)?(?:www\.)?github\.com\/[\w\-\_]+\/?/i) || extractedLinks.find(l => l.includes("github.com/"));
+    const leetcodeUrl = extractUrl(/(?:https?:\/\/)?(?:www\.)?leetcode\.com\/[\w\-\_]+\/?/i) || extractedLinks.find(l => l.includes("leetcode.com/"));
+    const hdlbitsUrl = extractUrl(/(?:https?:\/\/)?(?:www\.)?hdlbits\.01xz\.net\/wiki\/User:[\w\-\_]+/i) || extractUrl(/hdlbits\.01xz\.net\/[\w\-\_]+/i) || extractedLinks.find(l => l.includes("hdlbits.01xz.net"));
+
+    const contactValidation = {
+        email: hasEmail,
+        phone: hasPhone,
+        linkedin: !!linkedinUrl,
+        github: !!githubUrl,
+        hdlbits: !!hdlbitsUrl,
+        leetcode: !!leetcodeUrl,
+        urls: {
+            linkedin: linkedinUrl,
+            github: githubUrl,
+            leetcode: leetcodeUrl,
+            hdlbits: hdlbitsUrl
+        }
+    };
+
+    // --- 6. Platform Bonus Scoring ---
+    let extraSoftwarePoints = 0;
+    let extraVLSIPoints = 0;
+
+    if (platformStats?.leetcode && platformStats.leetcode.totalSolved > 0) {
+        const { totalSolved, mediumSolved, hardSolved } = platformStats.leetcode;
+        // Logic: Easy=0.05, Medium=0.1, Hard=0.2 (capped at 25 points)
+        extraSoftwarePoints = Math.min(
+            (platformStats.leetcode.easySolved * 0.05) +
+            (mediumSolved * 0.2) +
+            (hardSolved * 0.5),
+            25
+        );
+
+        feedback.push(`LeetCode Verified: ${totalSolved} solved (${mediumSolved} Med, ${hardSolved} Hard). +${Math.round(extraSoftwarePoints)} points to Software.`);
+    }
+
+    if (platformStats?.hdlbits?.solvedCount && platformStats.hdlbits.solvedCount > 0) {
+        const solved = platformStats.hdlbits.solvedCount;
+        // Logic: 0.3 points per solved problem (capped at 20 points)
+        extraVLSIPoints = Math.min(solved * 0.3, 20);
+
+        eceScores.vlsi = Math.min(eceScores.vlsi + extraVLSIPoints, 100);
+        feedback.push(`HDLBits Verified: ${solved} problems solved. +${Math.round(extraVLSIPoints)} points to VLSI.`);
+    } else if (contactValidation.hdlbits) {
+        feedback.push("HDLBits profile found but stats could not be verified. Solve more problems to earn a bonus!");
+    }
+
+    // Apply software bonus
+    eceScores.software = Math.min(eceScores.software + extraSoftwarePoints, 100);
+
+    // Recalculate keyword/total score with bonuses
+    const finalKeywordScore = Math.min(keywordScore + (extraSoftwarePoints + extraVLSIPoints) / 2, 100);
+    const finalOverallScore = Math.min(score + (extraSoftwarePoints + extraVLSIPoints) / 4, 100);
+
+    // Final Feedback Adjustments
     if (missingSections.length > 0) feedback.push(`Missing sections: ${missingSections.join(", ")}`);
     if (!contactValidation.linkedin) feedback.push("Add your LinkedIn profile.");
-    if (!contactValidation.github && (eceScores.software > 30 || eceScores.embedded > 30)) feedback.push("GitHub link recommended for Software/Embedded roles.");
+    if (!contactValidation.github) feedback.push("GitHub link is necessary. Add your project files to GitHub and include the link in your Project section.");
+    if (score < 50) feedback.push("Overall score is low. Focus on adding more relevant keywords and sections.");
 
     return {
-        score: Math.min(Math.round(score), 100),
-        details: { sectionScore, formattingScore, keywordScore, lengthScore: 0 },
+        score: Math.min(Math.round(finalOverallScore), 100),
+        details: { sectionScore, formattingScore, keywordScore: finalKeywordScore, lengthScore },
         missingSections,
-        foundKeywords: [...new Set(foundKeywords)], // dedup
-        feedback,
+        foundKeywords: [...new Set(foundKeywords)],
+        feedback: [...new Set(feedback)], // dedup
         eceScores,
-        rolePrediction: { primaryRole, secondaryRoles, allRoles },
-        domainAnalysis: { digital: digitalPercent, analog: analogPercent, explanation: domainExplanation },
-        contactValidation
+        rolePrediction: { primaryRole, secondaryRoles, allRoles, salaryPrediction },
+        educationDetails,
+        contactValidation,
+        platformStats
     };
 }
 
+// Helper for domain scores
 function calculateDomainScore(text: string, keywords: string[]): number {
     let count = 0;
-    keywords.forEach(k => { if (text.includes(k)) count++; });
-    // Normalize: 10 keywords = 100%
-    return Math.min(Math.round((count / 8) * 100), 100);
+    keywords.forEach(k => { if (hasMatch(text, k)) count++; });
+    return Math.min(Math.round((count / 15) * 100), 100); // Harder difficulty (15 keywords required for 100%)
 }
 
-// Skill Display Mapping (Capitalization)
+// Skill Display Mapping
 const SKILL_DISPLAY_MAP: Record<string, string> = {
     "signal processing": "Signal Processing", "dsp": "DSP", "matlab": "MATLAB", "fft": "FFT", "filters": "Filters",
     "wireless": "Wireless", "5g": "5G", "lte": "LTE", "modulation": "Modulation", "communication systems": "Comm. Systems",
@@ -170,53 +535,39 @@ const SKILL_DISPLAY_MAP: Record<string, string> = {
 };
 
 function formatSkill(skill: string): string {
-    return SKILL_DISPLAY_MAP[skill] || skill.charAt(0).toUpperCase() + skill.slice(1);
+    return SKILL_DISPLAY_MAP[skill.toLowerCase()] || skill.charAt(0).toUpperCase() + skill.slice(1);
 }
 
-function predictRole(scores: any, text: string) {
-    const roles = [
-        { name: "Physical Design / VLSI Engineer", score: scores.vlsi * 1.2 + scores.digital * 0.5, required: ECE_DOMAINS.vlsi },
-        { name: "FPGA Design Engineer", score: scores.vlsi * 1.1 + scores.embedded * 0.4, required: [...ECE_DOMAINS.vlsi, "fpga", "timing analysis"] },
-        { name: "Embedded Firmware Engineer", score: scores.embedded * 1.2 + scores.software * 0.3, required: ECE_DOMAINS.embedded },
-        { name: "IoT Solutions Architect", score: scores.embedded * 0.8 + scores.communication * 0.6 + scores.software * 0.4, required: ["iot", "sensors", "wireless", "cloud"] },
-        { name: "Communication / RF Engineer", score: scores.communication * 1.2, required: ECE_DOMAINS.communication },
-        { name: "Signal Processing Engineer", score: scores.communication * 1.0 + scores.software * 0.5, required: ["dsp", "matlab", "python", "fft"] },
-        { name: "Hardware Design Engineer", score: scores.analog * 0.8 + scores.embedded * 0.5 + scores.vlsi * 0.5, required: ["pcb", "schema", "soldering", "testing"] },
-        { name: "Software-Oriented ECE", score: scores.software, required: ECE_DOMAINS.software }
-    ];
+// Helper to parse "₹18-22 LPA" or "₹10 LPA" -> [min, max]
+function parseSalaryRange(salaryStr: string): [number, number] {
+    if (!salaryStr || salaryStr === "N/A") return [0, 0];
 
-    // Normalize scores manually inside role defs effectively, or just sort raw
-    // Note: scores.digital/analog passed in 'scores' object? 
-    // Wait, 'scores' arg currently only has {communication, vlsi, embedded, software}. 
-    // We need to assume the caller might strictly pass that.
-    // Let's stick to the 4 main domains for score calculation to avoid breaking changes without refactoring types heavily.
-    // I will simplify the score logic to use the available 4 keys.
+    // Remove "₹", "LPA", commas, spaces
+    const cleanStr = salaryStr.replace(/[₹,LPA\s]/g, "");
 
-    const advancedRoles = [
-        { name: "Physical Design / VLSI Engineer", score: scores.vlsi, required: ECE_DOMAINS.vlsi },
-        { name: "FPGA Design Engineer", score: (scores.vlsi + scores.embedded) / 2, required: ["fpga", "verilog", "vhdl", "timing analysis"] },
-        { name: "Embedded Firmware Engineer", score: scores.embedded, required: ECE_DOMAINS.embedded },
-        { name: "IoT Engineer", score: (scores.embedded + scores.communication) / 2, required: ["iot", "sensors", "wireless", "stm32"] },
-        { name: "Communication / RF Engineer", score: scores.communication, required: ECE_DOMAINS.communication },
-        { name: "DSP Engineer", score: (scores.communication + scores.software) / 2, required: ["dsp", "matlab", "python", "fft"] },
-        { name: "Software-Oriented ECE", score: scores.software, required: ECE_DOMAINS.software }
-    ];
+    // Check for range "18-22"
+    if (cleanStr.includes("-")) {
+        const parts = cleanStr.split("-").map(parseFloat);
+        return [parts[0] || 0, parts[1] || parts[0] || 0];
+    }
 
-    // Sort by score descending
-    advancedRoles.sort((a, b) => b.score - a.score);
+    // Single value "18"
+    const val = parseFloat(cleanStr);
+    return [val || 0, val || 0];
+}
 
-    const primaryRole = advancedRoles[0].name;
-    // Take top 3 alternatives
-    const secondaryRoles = advancedRoles.slice(1, 4).map(r => r.name);
+function parseEducation(text: string) {
+    // Look for patterns like CEG'27, MIT'25, Anna University 2024
+    const shortPattern = /([A-Za-z\s&]+)'(\d{2})/i;
+    const match = text.match(shortPattern);
 
-    // Calculate missing skills for ALL roles with Formatting
-    const allRoles = advancedRoles.map(role => ({
-        name: role.name,
-        missingSkills: role.required
-            .filter(k => !text.includes(k)) // check against raw text (lowercase)
-            .slice(0, 6) // Top 6 missing
-            .map(s => formatSkill(s)) // Format for display
-    }));
+    if (match) {
+        return {
+            college: match[1].trim(),
+            batch: `'${match[2]}`
+        };
+    }
 
-    return { primaryRole, secondaryRoles, allRoles };
+    // Fallback? Maybe standard parsing if needed, but keeping it simple as requested
+    return undefined;
 }

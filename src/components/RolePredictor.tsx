@@ -2,13 +2,28 @@
 
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Briefcase, Target, ArrowRight, CheckCircle } from "lucide-react";
+import { Briefcase, Target, ArrowRight, CheckCircle, IndianRupee, Building2 } from "lucide-react";
 
 interface RolePredictorProps {
     prediction: {
         primaryRole: string;
         secondaryRoles: string[];
-        allRoles: { name: string; missingSkills: string[] }[];
+        allRoles: {
+            name: string;
+            missingSkills: string[];
+            salary: {
+                avg: string;
+                highest: string;
+                lowest: string;
+                internship: string;
+            };
+            companies: string[];
+            description: string;
+        }[];
+        salaryPrediction: {
+            min: number;
+            max: number;
+        };
     };
 }
 
@@ -64,6 +79,42 @@ export default function RolePredictor({ prediction }: RolePredictorProps) {
                     ))}
                 </div>
             </div>
+
+            {/* Expected CTC Range (New Module) */}
+            <div className="bg-gradient-to-r from-emerald-500/10 to-emerald-500/5 border border-emerald-500/20 rounded-xl p-4 mt-2">
+                <div className="flex items-center gap-2 mb-2">
+                    <IndianRupee className="w-5 h-5 text-emerald-600" />
+                    <h3 className="font-semibold text-emerald-700">Expected CTC Range</h3>
+                </div>
+
+                <div className="flex items-baseline gap-1">
+                    <span className="text-2xl font-bold text-foreground">
+                        ₹{prediction.salaryPrediction?.min || "0"} - {prediction.salaryPrediction?.max || "0"}
+                    </span>
+                    <span className="text-sm font-medium text-muted-foreground">LPA</span>
+                </div>
+
+                <p className="text-xs text-muted-foreground mt-2 italic">
+                    "Based on your best matching roles and skill alignment."
+                </p>
+            </div>
+
+            {/* Companies (Full List) */}
+            {selectedRoleData.companies.length > 0 && (
+                <div className="mt-4">
+                    <h4 className="text-xs font-medium text-muted-foreground flex items-center gap-1 mb-2">
+                        <Building2 className="w-3 h-3" /> Top Recruiters
+                    </h4>
+                    <div className="flex flex-wrap gap-1">
+                        {selectedRoleData.companies.map((comp, idx) => (
+                            <span key={idx} className="text-[10px] px-2 py-0.5 bg-muted rounded text-muted-foreground border border-border/30">
+                                {comp}
+                            </span>
+                        ))}
+                    </div>
+                </div>
+            )}
+
 
             {/* Missing Skills Dynamic Display */}
             <div className="mt-4 pt-4 border-t border-border">

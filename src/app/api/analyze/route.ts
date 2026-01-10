@@ -35,9 +35,75 @@ export async function POST(req: NextRequest) {
             }
 
             const fullText = result.text;
+            const extractedLinks = result.links || [];
 
-            // Calculate score
-            const analysis = calculateATSScore(fullText);
+            // Combine text and links for better discovery
+            const searchSource = fullText + "\n" + extractedLinks.join("\n");
+
+            const lowerText = fullText.toLowerCase();
+
+            // --- Platform Data Fetching ---
+            let platformStats: any = {};
+
+            // 1. Detect & Fetch LeetCode
+            // Handle: leetcode.com/username, leetcode.com/u/username, etc.
+            const leetcodeMatch = searchSource.match(/(?:leetcode\.com\/(?:u\/)?)([\w\-\_]+)/i);
+            if (leetcodeMatch && leetcodeMatch[1]) {
+                const username = leetcodeMatch[1].replace(/\/$/, "");
+                try {
+                    const response = await fetch(`https://leetcode-stats-api.herokuapp.com/${username}`);
+                    if (response.ok) {
+                        const data = await response.json();
+                        if (data.status === "success") {
+                            platformStats = {
+                                ...platformStats,
+                                leetcode: {
+                                    totalSolved: data.totalSolved,
+                                    easySolved: data.easySolved,
+                                    mediumSolved: data.mediumSolved,
+                                    hardSolved: data.hardSolved,
+                                    ranking: data.ranking,
+                                    contributionPoints: data.contributionPoints
+                                }
+                            };
+                        }
+                    }
+                } catch (e) {
+                    console.error("Failed to fetch LeetCode stats:", e);
+                }
+            }
+
+            // 2. Detect & Fetch HDLBits
+            // Handle: hdlbits.01xz.net/wiki/Special:VlgStats/ID
+            const hdlbitsMatch = searchSource.match(/hdlbits\.01xz\.net\/wiki\/Special:VlgStats\/([A-Z0-9]+)/i);
+            if (hdlbitsMatch && hdlbitsMatch[1]) {
+                const statsId = hdlbitsMatch[1];
+                try {
+                    const response = await fetch(`https://hdlbits.01xz.net/wiki/Special:VlgStats/${statsId}`, {
+                        headers: {
+                            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+                        }
+                    });
+                    if (response.ok) {
+                        const html = await response.text();
+                        // Lenient parsing: Handles <th> or <td> for labels
+                        const solvedMatch = html.match(/Problems solved:<\/(?:td|th)>\s*<td[^>]*>(\d+)<\/td>/i);
+                        if (solvedMatch) {
+                            platformStats = {
+                                ...platformStats,
+                                hdlbits: {
+                                    solvedCount: parseInt(solvedMatch[1])
+                                }
+                            };
+                        }
+                    }
+                } catch (e) {
+                    console.error("Failed to fetch HDLBits stats:", e);
+                }
+            }
+
+            // Calculate score with platform data
+            const analysis = calculateATSScore(fullText, platformStats, extractedLinks);
 
             // Clean up temp file
             fs.unlinkSync(tempFilePath);

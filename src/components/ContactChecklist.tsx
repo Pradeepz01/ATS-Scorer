@@ -9,19 +9,33 @@ interface ContactChecklistProps {
         phone: boolean;
         linkedin: boolean;
         github: boolean;
-        hdlbits: boolean; // optional
-        leetcode: boolean; // optional
+        hdlbits: boolean;
+        leetcode: boolean;
+    };
+    platformStats?: {
+        leetcode?: { totalSolved: number };
+        hdlbits?: { solvedCount?: number };
     };
 }
 
-export default function ContactChecklist({ validation }: ContactChecklistProps) {
+export default function ContactChecklist({ validation, platformStats }: ContactChecklistProps) {
     const items = [
         { label: "Email Address", valid: validation.email, required: true },
         { label: "LinkedIn URL", valid: validation.linkedin, required: true },
-        { label: "GitHub Profile", valid: validation.github, required: true }, // Treated as "Strongly Recommended"
+        { label: "GitHub Profile", valid: validation.github, required: true },
         { label: "Phone Number", valid: validation.phone, required: false },
-        { label: "HDLBits Profile", valid: validation.hdlbits, required: false },
-        { label: "LeetCode Profile", valid: validation.leetcode, required: false },
+        {
+            label: "HDLBits Profile",
+            valid: validation.hdlbits,
+            required: false,
+            stats: platformStats?.hdlbits ? `${platformStats.hdlbits.solvedCount} Solved` : null
+        },
+        {
+            label: "LeetCode Profile",
+            valid: validation.leetcode,
+            required: false,
+            stats: platformStats?.leetcode ? `${platformStats.leetcode.totalSolved} Solved` : null
+        },
     ];
 
     return (
@@ -38,6 +52,11 @@ export default function ContactChecklist({ validation }: ContactChecklistProps) 
                             {item.label} {item.required ? <span className="text-destructive">*</span> : <span className="text-xs text-muted-foreground/50">(Optional)</span>}
                         </span>
                         <div className="flex items-center gap-2">
+                            {(item as any).stats && (
+                                <span className="text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded border border-primary/20 font-medium">
+                                    {(item as any).stats}
+                                </span>
+                            )}
                             {item.valid ? (
                                 <Check className="w-4 h-4 text-green-500" />
                             ) : (

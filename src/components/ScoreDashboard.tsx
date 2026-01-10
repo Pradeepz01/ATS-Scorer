@@ -7,7 +7,6 @@ import { cn } from "@/lib/utils";
 import SkillRadar from "./SkillRadar";
 import RolePredictor from "./RolePredictor";
 import ContactChecklist from "./ContactChecklist";
-import DomainAnalysis from "./DomainAnalysis";
 
 interface ScoreDashboardProps {
     analysis: ATSResult;
@@ -15,7 +14,7 @@ interface ScoreDashboardProps {
 }
 
 export default function ScoreDashboard({ analysis, onReset }: ScoreDashboardProps) {
-    const { score, details, missingSections, feedback, eceScores, rolePrediction, domainAnalysis, contactValidation } = analysis;
+    const { score, details, missingSections, feedback, eceScores, rolePrediction, educationDetails, contactValidation, platformStats } = analysis;
 
     const getScoreColor = (s: number) => {
         if (s >= 80) return "text-green-500";
@@ -80,37 +79,33 @@ export default function ScoreDashboard({ analysis, onReset }: ScoreDashboardProp
                     <div className="grid grid-cols-2 gap-4">
                         <div className="bg-card/30 p-4 rounded-lg border border-border/50">
                             <div className="text-muted-foreground text-xs uppercase mb-1">Sections</div>
-                            <div className="text-xl font-bold">{Math.round(details.sectionScore)}/40</div>
+                            <div className="text-xl font-bold">{Math.round(details.sectionScore * 0.4)}/40</div>
                         </div>
                         <div className="bg-card/30 p-4 rounded-lg border border-border/50">
                             <div className="text-muted-foreground text-xs uppercase mb-1">Context</div>
-                            <div className="text-xl font-bold">{Math.round(details.keywordScore)}/30</div>
+                            <div className="text-xl font-bold">{Math.round(details.keywordScore * 0.3)}/30</div>
                         </div>
                         <div className="bg-card/30 p-4 rounded-lg border border-border/50">
                             <div className="text-muted-foreground text-xs uppercase mb-1">Format</div>
-                            <div className="text-xl font-bold">{Math.round(details.formattingScore)}/30</div>
+                            <div className="text-xl font-bold">{Math.round(details.formattingScore * 0.3)}/30</div>
                         </div>
                     </div>
 
-                    {/* NEW: Domain Analysis */}
-                    {domainAnalysis && <DomainAnalysis data={domainAnalysis} />}
-                </div>
+                    {/* Student Info (New) */}
+                    {educationDetails && (
+                        <div className="bg-primary/5 border border-primary/20 rounded-xl p-4 flex items-center justify-between">
+                            <div>
+                                <div className="text-xs text-muted-foreground uppercase">Detected Pattern</div>
+                                <div className="font-semibold text-primary">{educationDetails.college}</div>
+                            </div>
+                            <div className="text-right">
+                                <div className="text-xs text-muted-foreground uppercase">Batch</div>
+                                <div className="font-bold">{educationDetails.batch}</div>
+                            </div>
+                        </div>
+                    )}
 
-                {/* MIDDLE COLUMN: ECE Specifics */}
-                <div className="w-full md:w-1/3 space-y-6">
-                    {/* NEW: Radar Chart */}
-                    {eceScores && <SkillRadar scores={eceScores} />}
-
-                    {/* NEW: Contact Checklist */}
-                    {contactValidation && <ContactChecklist validation={contactValidation} />}
-                </div>
-
-                {/* RIGHT COLUMN: Roles & Action Items */}
-                <div className="w-full md:w-1/3 space-y-6">
-                    {/* NEW: Role Predictor */}
-                    {rolePrediction && <RolePredictor prediction={rolePrediction} />}
-
-                    {/* Improvement Suggestions */}
+                    {/* Improvement Suggestions (Moved to Left) */}
                     <div className="bg-card/50 backdrop-blur-md border border-border rounded-xl p-6 shadow-sm">
                         <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
                             <FileText className="w-5 h-5 text-primary" />
@@ -135,6 +130,21 @@ export default function ScoreDashboard({ analysis, onReset }: ScoreDashboardProp
                             ))}
                         </div>
                     </div>
+                </div>
+
+                {/* MIDDLE COLUMN: ECE Specifics */}
+                <div className="w-full md:w-1/3 space-y-6">
+                    {/* NEW: Radar Chart */}
+                    {eceScores && <SkillRadar scores={eceScores} />}
+
+                    {/* NEW: Contact Checklist */}
+                    {contactValidation && <ContactChecklist validation={contactValidation} platformStats={platformStats} />}
+                </div>
+
+                {/* RIGHT COLUMN: Roles */}
+                <div className="w-full md:w-1/3 space-y-6">
+                    {/* NEW: Role Predictor */}
+                    {rolePrediction && <RolePredictor prediction={rolePrediction} />}
                 </div>
             </div>
 
