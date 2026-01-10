@@ -54,7 +54,14 @@ export async function POST(req: NextRequest) {
                     if (leetcodeMatch && leetcodeMatch[1]) {
                         const username = leetcodeMatch[1].replace(/\/$/, "");
                         try {
-                            const response = await fetch(`https://leetcode-stats-api.herokuapp.com/${username}`);
+                            const controller = new AbortController();
+                            const timeoutId = setTimeout(() => controller.abort(), 5000); // 5s timeout
+
+                            const response = await fetch(`https://leetcode-stats-api.herokuapp.com/${username}`, {
+                                signal: controller.signal
+                            });
+                            clearTimeout(timeoutId);
+
                             if (response.ok) {
                                 const data = await response.json();
                                 if (data.status === "success") {
@@ -69,7 +76,7 @@ export async function POST(req: NextRequest) {
                                 }
                             }
                         } catch (e) {
-                            console.error("Failed to fetch LeetCode stats:", e);
+                            console.error("Failed to fetch LeetCode stats or timed out:", e);
                         }
                     }
                 })(),
@@ -78,11 +85,17 @@ export async function POST(req: NextRequest) {
                     if (hdlbitsMatch && hdlbitsMatch[1]) {
                         const statsId = hdlbitsMatch[1];
                         try {
+                            const controller = new AbortController();
+                            const timeoutId = setTimeout(() => controller.abort(), 5000); // 5s timeout
+
                             const response = await fetch(`https://hdlbits.01xz.net/wiki/Special:VlgStats/${statsId}`, {
+                                signal: controller.signal,
                                 headers: {
                                     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
                                 }
                             });
+                            clearTimeout(timeoutId);
+
                             if (response.ok) {
                                 const html = await response.text();
                                 const solvedMatch = html.match(/Problems solved:<\/(?:td|th)>\s*<td[^>]*>(\d+)<\/td>/i);
@@ -93,7 +106,7 @@ export async function POST(req: NextRequest) {
                                 }
                             }
                         } catch (e) {
-                            console.error("Failed to fetch HDLBits stats:", e);
+                            console.error("Failed to fetch HDLBits stats or timed out:", e);
                         }
                     }
                 })()
