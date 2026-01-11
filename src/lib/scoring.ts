@@ -159,13 +159,52 @@ function getRoleDomain(role: RoleData): string {
     return "core";
 }
 
+// Premium Keywords for Industry Depth (Fortune 500 / R&D focus)
+const PREMIUM_KEYWORDS = [
+    "risc-v", "verilog", "vhdl", "systemverilog", "patent", "stm32", "rtos", "uav", "pcb design",
+    "gnu radio", "firmware", "rtl", "asic", "fpga", "physical design", "sta", "dft", "soc",
+    "analog design", "rf design", "antenna", "signal processing", "digital electronics"
+];
+
 function predictRole(eceScores: ATSResult['eceScores'], text: string) {
     const cgpa = extractCGPA(text);
+    const lowerText = text.toLowerCase();
 
-    // --- Experience & Seniority Detection ---
-    const isStudent = /3rd year|4th year|3rd-year|4th-year|student|intern|pursuing|undergraduate/i.test(text);
-    const graduatYearMatch = text.match(/\b(202[5-8])\b/);
-    const isJunior = isStudent || !!graduatYearMatch;
+    // 1. Contextual Detection (College Tier & Project Depth)
+    const TIER1_COLLEGES = ['ceg', 'guindy', 'iit', 'nit', 'bits pilani', 'bits hyderabad', 'iiit', 'psg tech', 'rvce', 'mit chennai'];
+    const isTier1 = TIER1_COLLEGES.some(kw => {
+        const regex = new RegExp(`\\b${kw}\\b`, 'i');
+        const match = text.match(regex);
+        if (!match) return false;
+
+        // Use a wider context for rejection
+        const start = Math.max(0, match.index! - 60);
+        const end = Math.min(text.length, match.index! + 60);
+        const context = text.substring(start, end).toLowerCase();
+
+        // Expanded rejection list for 2025 fresher context (workshops, certifications, student initiatives)
+        const nonInstitutionalKeywords = [
+            'workshop', 'course', 'tutorial', 'nptel', 'certification', 'training',
+            'participant', 'initiative', 'project', 'program', 'event', 'club',
+            'competed', 'won', 'presented', 'organized', 'hosted'
+        ];
+
+        if (nonInstitutionalKeywords.some(bad => context.includes(bad))) return false;
+
+        // Positive institutional indicators (optional but helpful)
+        const institutionalIndicators = ['education', 'b.e', 'b.tech', 'bachelor', 'university', 'college', 'institute', 'degree', 'percentage', 'cgpa', 'passed out'];
+        // Require at least one institutional indicator in the vicinity or beginning of resume
+        if (!institutionalIndicators.some(good => context.includes(good)) && match.index! > 2000) return false;
+
+        return true;
+    }) && !hasMatch(text, 'affiliated');
+
+    let depthPoints = 0;
+    PREMIUM_KEYWORDS.forEach(kw => {
+        if (hasMatch(text, kw)) depthPoints++;
+    });
+
+    const depthMultiplier = Math.min(1.5, 1.0 + (depthPoints * 0.1));
 
     // 1. Calculate Score for EACH role
     const scoredRoles = ROLES_DATA.map(roleData => {
@@ -252,63 +291,66 @@ function predictRole(eceScores: ATSResult['eceScores'], text: string) {
     // Role discovery improvement: Ensure high confidence or use GET fallback
     const rolesForPrediction = [selectedRoles[0]];
 
-    // --- Weighted Salary Prediction with CGPA Boost ---
+    // --- Weighted Salary Prediction (Fortune 500 Trends 2025-26) ---
+    // Using a refined Slab-based model for Freshers to ensure benchmark alignment
     let totalWeight = 0;
     let weightedMin = 0;
     let weightedMax = 0;
 
     rolesForPrediction.forEach(role => {
-        if (role && (role.score > 20 || rolesForPrediction.length === 1)) {
-            let [min, max] = parseSalaryRange(role.salary.avg);
+        if (role && (role.score > 5 || rolesForPrediction.length === 1)) {
+            const rDomain = (role as any).rDomain;
+
+            // Base Slabs (F500 Freshers 2025-26)
+            let baseMin = 2.5;
+            let baseMax = 3.8;
+
+            if (rDomain === "vlsi") { baseMin = 3.6; baseMax = 5.5; }
+            else if (rDomain === "embedded") { baseMin = 3.0; baseMax = 4.5; }
+            else if (rDomain === "software") { baseMin = 3.3; baseMax = 5.0; }
+
+            // Step B: Merit Boosts
+            if (isTier1) {
+                baseMin += 3.2;
+                baseMax += 5.0;
+            }
+
+            // Depth Boost (Max 35% lift for depth)
+            const depthBoost = 1.0 + (depthPoints * 0.04);
+            baseMax *= depthBoost;
+            baseMin *= (1.0 + (depthPoints * 0.015));
+
+            // Step C: Confidence Penalty
             const confidence = role.skillScore / 100;
-
-            // Experience-Aware Scaling:
-            if (isJunior) {
-                // Cap senior roles for students/interns to realistic entry levels
-                const cap = role.domain === "Software" ? 12.5 : 9.5;
-                if (max > cap) {
-                    max = cap;
-                    min = Math.min(min, cap - 2.5);
-                }
+            if (confidence < 0.4) {
+                baseMax = baseMin + (baseMax - baseMin) * 0.25;
             }
 
-            // Stricter Salary Logic
-            const effectiveMin = min;
-            let effectiveMax = max;
-
-            // If low confidence, drag max down to min
-            if (confidence < 0.6) {
-                effectiveMax = min + (max - min) * 0.2;
-            }
-
-            if (min > 0) {
-                weightedMin += effectiveMin;
-                weightedMax += effectiveMax;
+            if (baseMin > 0) {
+                weightedMin += baseMin;
+                weightedMax += baseMax;
                 totalWeight += 1;
             }
         }
     });
 
-    // Fallback if no specific role matched well (The "Hariish" Fix)
-    let predMin = totalWeight > 0 ? (weightedMin / totalWeight) : 6.0;
-    let predMax = totalWeight > 0 ? (weightedMax / totalWeight) : 8.0;
+    // Final Normalization
+    let predMin = totalWeight > 0 ? (weightedMin / totalWeight) : 3.0;
+    let predMax = totalWeight > 0 ? (weightedMax / totalWeight) : 4.5;
 
-    // Apply "Market Reality" Stringency (0.85)
-    predMax = predMax * 0.9; // Slightly less dampening for the ceiling
-    predMin = predMin * 0.85;
-
-    // --- Ceiling-Based Prediction (Target is Max) ---
-    const spread = Math.max(1.5, predMax * 0.25);
-    predMin = Math.max(3.0, predMax - spread);
-
-    // **CGPA Salary Boost**
-    // High CGPA (>8.5) often unlocks "Dream" status companies paying significantly more
-    if (cgpa >= 8.5) {
-        predMax *= 1.25; // 25% boost to potential max
-        predMin *= 1.1;  // 10% boost to base
-    } else if (cgpa >= 7.5) {
-        predMax *= 1.1; // 10% boost
+    // CGPA Persistence (Extra lift for 9+)
+    if (cgpa >= 9.0) {
+        predMin += 0.5;
+        predMax += 0.8;
     }
+
+    // Ensure realistic bounds
+    predMin = Math.max(3.0, predMin);
+    predMax = Math.max(predMin + 1.2, predMax);
+
+    // Floor the Max if it gets too crazy for freshers, but allow ceiling for Tier-1
+    if (!isTier1) predMax = Math.min(10.0, predMax);
+    else predMax = Math.min(18.0, predMax);
 
     // ---------------------------------------
 
