@@ -7,6 +7,7 @@ import {
     PolarAngleAxis,
     PolarRadiusAxis,
     ResponsiveContainer,
+    Tooltip,
 } from "recharts";
 import { motion } from "framer-motion";
 
@@ -38,7 +39,7 @@ export default function SkillRadar({ scores }: SkillRadarProps) {
             className="bg-card/50 backdrop-blur-md border border-border rounded-xl p-6 shadow-sm flex flex-col items-center"
         >
             <h3 className="text-lg font-semibold mb-1 text-center bg-clip-text text-transparent bg-gradient-to-r from-primary to-primary/60">
-                ECE Skill Proximity
+                Domain Profile
             </h3>
 
             <div className="h-[320px] w-full mt-2 relative">
@@ -53,13 +54,22 @@ export default function SkillRadar({ scores }: SkillRadarProps) {
                             tick={{ fill: "var(--foreground)", fontSize: 10, fontWeight: 500 }}
                         />
                         <PolarRadiusAxis angle={30} domain={[0, 100]} tick={false} axisLine={false} />
+                        <Tooltip
+                            contentStyle={{
+                                backgroundColor: 'var(--card)',
+                                border: '1px solid var(--border)',
+                                borderRadius: '8px',
+                                fontSize: '12px'
+                            }}
+                            itemStyle={{ color: 'var(--primary)', fontWeight: 600 }}
+                        />
                         <Radar
-                            name="Skill Profile"
+                            name="Score"
                             dataKey="A"
                             stroke="var(--primary)"
-                            strokeWidth={3}
+                            strokeWidth={4}
                             fill="var(--primary)"
-                            fillOpacity={0.5}
+                            fillOpacity={0.65}
                             isAnimationActive={true}
                         />
                     </RadarChart>
@@ -68,14 +78,14 @@ export default function SkillRadar({ scores }: SkillRadarProps) {
 
             {/* Strongest Domain Highlight */}
             <div className="mt-4 text-center">
-                <span className="text-xs text-muted-foreground uppercase tracking-wider">Strongest Domain</span>
+                <span className="text-xs text-muted-foreground uppercase tracking-wider font-medium">Primary Strength</span>
                 <div className="text-sm font-bold text-primary mt-1">
                     {strongestDomain}
                 </div>
             </div>
 
-            <p className="text-xs text-center text-muted-foreground mt-4 italic">
-                Shape indicates your engineering balance. Broader coverage = more versatile.
+            <p className="text-xs text-center text-muted-foreground mt-4 italic max-w-[280px]">
+                This profile shows how your skills are distributed across ECE domains. Balanced profiles suit system roles; strong peaks suit specialist roles.
             </p>
         </motion.div>
     );
