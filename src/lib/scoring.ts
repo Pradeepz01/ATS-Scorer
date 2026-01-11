@@ -523,12 +523,12 @@ export function calculateATSScore(text: string, platformStats?: ATSResult['platf
 
     if (platformStats?.leetcode && platformStats.leetcode.totalSolved > 0) {
         const { totalSolved, easySolved, mediumSolved, hardSolved } = platformStats.leetcode;
-        // Boosted Logic: Hard=1.0, Medium=0.3, Easy=0.1
+        // Conservative Logic: Hard=0.75, Medium=0.25, Easy=0.08 (Capped at 20)
         extraSoftwarePoints = Math.min(
-            (easySolved * 0.1) +
-            (mediumSolved * 0.3) +
-            (hardSolved * 1.0),
-            30
+            (easySolved * 0.08) +
+            (mediumSolved * 0.25) +
+            (hardSolved * 0.75),
+            20
         );
 
         feedback.push(`LeetCode Verified: ${totalSolved} solved (+${Math.round(extraSoftwarePoints)} Skill points).`);
@@ -536,8 +536,8 @@ export function calculateATSScore(text: string, platformStats?: ATSResult['platf
 
     if (platformStats?.hdlbits?.solvedCount && platformStats.hdlbits.solvedCount > 0) {
         const solved = platformStats.hdlbits.solvedCount;
-        // Boosted Logic: 0.5 points per solved problem (capped at 30 points)
-        extraVLSIPoints = Math.min(solved * 0.5, 30);
+        // Conservative Logic: 0.4 points per solved problem (capped at 20 points)
+        extraVLSIPoints = Math.min(solved * 0.4, 20);
 
         eceScores.vlsi = Math.min(eceScores.vlsi + extraVLSIPoints, 100);
         feedback.push(`HDLBits Verified: ${solved} solved (+${Math.round(extraVLSIPoints)} Skill points to VLSI).`);
@@ -560,6 +560,7 @@ export function calculateATSScore(text: string, platformStats?: ATSResult['platf
     if (!contactValidation.linkedin) feedback.push("Add your LinkedIn profile.");
     if (!contactValidation.github) feedback.push("GitHub link is necessary. Add your project files to GitHub and include the link in your Project section.");
     if (score < 50) feedback.push("Overall score is low. Focus on adding more relevant keywords and sections.");
+    if (avgDomainScore < 15) feedback.push("Skill Proximity Radar is too small. Add more domain-specific technical keywords (VLSI, Embedded, or Communication) to expand your profile.");
 
     return {
         score: Math.min(Math.round(finalOverallScore), 100),
