@@ -168,7 +168,6 @@ const PREMIUM_KEYWORDS = [
 
 function predictRole(eceScores: ATSResult['eceScores'], text: string) {
     const cgpa = extractCGPA(text);
-    const lowerText = text.toLowerCase();
 
     // 1. Contextual Detection (College Tier & Project Depth)
     const TIER1_COLLEGES = ['ceg', 'guindy', 'iit', 'nit', 'bits pilani', 'bits hyderabad', 'iiit', 'psg tech', 'rvce', 'mit chennai'];
@@ -203,8 +202,6 @@ function predictRole(eceScores: ATSResult['eceScores'], text: string) {
     PREMIUM_KEYWORDS.forEach(kw => {
         if (hasMatch(text, kw)) depthPoints++;
     });
-
-    const depthMultiplier = Math.min(1.5, 1.0 + (depthPoints * 0.1));
 
     // 1. Calculate Score for EACH role
     const scoredRoles = ROLES_DATA.map(roleData => {
@@ -299,7 +296,7 @@ function predictRole(eceScores: ATSResult['eceScores'], text: string) {
 
     rolesForPrediction.forEach(role => {
         if (role && (role.score > 5 || rolesForPrediction.length === 1)) {
-            const rDomain = (role as any).rDomain;
+            const rDomain = (role as RoleData & { rDomain: string }).rDomain;
 
             // Base Slabs (F500 Freshers 2025-26)
             let baseMin = 2.5;
@@ -615,24 +612,6 @@ const SKILL_DISPLAY_MAP: Record<string, string> = {
 
 function formatSkill(skill: string): string {
     return SKILL_DISPLAY_MAP[skill.toLowerCase()] || skill.charAt(0).toUpperCase() + skill.slice(1);
-}
-
-// Helper to parse "₹18-22 LPA" or "₹10 LPA" -> [min, max]
-function parseSalaryRange(salaryStr: string): [number, number] {
-    if (!salaryStr || salaryStr === "N/A") return [0, 0];
-
-    // Remove "₹", "LPA", commas, spaces
-    const cleanStr = salaryStr.replace(/[₹,LPA\s]/g, "");
-
-    // Check for range "18-22"
-    if (cleanStr.includes("-")) {
-        const parts = cleanStr.split("-").map(parseFloat);
-        return [parts[0] || 0, parts[1] || parts[0] || 0];
-    }
-
-    // Single value "18"
-    const val = parseFloat(cleanStr);
-    return [val || 0, val || 0];
 }
 
 function parseEducation(text: string) {
