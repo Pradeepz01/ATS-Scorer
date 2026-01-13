@@ -35,8 +35,9 @@ export default function SkillRadar({ scores }: SkillRadarProps) {
     const strongestDomain = data.find(d => d.A === maxScore)?.subject || "";
 
     // Custom tick renderer to handle long labels without truncation
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const renderCustomAxisTick = (props: any) => {
-        const { x, y, payload, textAnchor, index } = props;
+        const { x, y, payload, textAnchor } = props;
         // Split on / or space for very long ones
         const parts = payload.value.split("/");
 
