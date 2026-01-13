@@ -78,13 +78,13 @@ const ECE_DOMAINS_TIERED = {
     },
     digital_vlsi: {
         tier1: ["verilog", "vhdl", "systemverilog", "asic", "fpga", "computer architecture"],
-        tier2: ["vivado", "quartus", "sta", "dft", "logic synthesis", "modelsim", "physical design", "verification", "uvm", "soc", "risc-v"],
-        tier3: ["digital design", "logic design", "fsm", "testbench"]
+        tier2: ["vivado", "quartus", "sta", "dft", "logic synthesis", "modelsim", "physical design", "verification", "uvm", "soc", "risc-v", "cadence genus", "clock domain crossing", "cdc", "static timing analysis", "gate level simulation"],
+        tier3: ["digital design", "logic design", "fsm", "testbench", "c-model", "data memory", "instruction memory", "fifo"]
     },
     analog_vlsi: {
         tier1: ["analog design", "rf design", "mixed signal", "cmos", "mosfet", "op amp", "operational amplifier", "bandgap reference", "ptat", "ctat"],
-        tier2: ["virtuoso", "hspice", "ngspice", "spectre", "ltspice", "lt spice", "layout design", "adc", "dac", "pll", "lna", "mixer", "vco", "rfic", "pmu", "biasing", "oscillators"],
-        tier3: ["matching networks", "smith chart", "vna", "spectrum analyzer", "s-parameters", "noise figure", "linearity", "antenna design", "scl 180nm", "transient analysis", "dc sweep", "temperature sweep"]
+        tier2: ["virtuoso", "hspice", "ngspice", "spectre", "ltspice", "lt spice", "layout design", "adc", "dac", "pll", "lna", "mixer", "vco", "rfic", "pmu", "biasing", "oscillators", "cadence virtuoso"],
+        tier3: ["matching networks", "smith chart", "vna", "spectrum analyzer", "s-parameters", "noise figure", "linearity", "antenna design", "scl 180nm", "transient analysis", "dc sweep", "temperature sweep", "ic design"]
     },
     embedded: {
         tier1: ["embedded c", "microcontroller", "rtos", "arm", "cortex"],
@@ -502,37 +502,42 @@ export function calculateATSScore(text: string, platformStats?: ATSResult['platf
     if (!hasEmail) feedback.push("Email address missing or not detected.");
     if (!hasPhone) feedback.push("Phone number missing or not detected.");
 
-    // Keyword Stuffing Check
+    // Keyword Stuffing & Anti-Inflation Check
     const keywordCounts: Record<string, number> = {};
-    const words = lowerText.split(/\s+/);
+    const words = lowerText.split(/[\s,();/.:]+/).filter(w => w.length > 3);
     words.forEach(w => {
-        if (w.length > 4) {
-            keywordCounts[w] = (keywordCounts[w] || 0) + 1;
+        keywordCounts[w] = (keywordCounts[w] || 0) + 1;
+    });
+
+    let stuffingPenalty = 0;
+    Object.entries(keywordCounts).forEach(([k, v]) => {
+        // Allow higher frequency for common structural words, but penalize technical repetition (>10)
+        const commonStructural = ["project", "university", "college", "engineering", "design", "development", "implemented", "system", "using"];
+        if (v > 10 && !commonStructural.includes(k)) {
+            stuffingPenalty += Math.min((v - 10) * 2, 20);
         }
     });
 
-    let stuffingDetected = false;
-    Object.entries(keywordCounts).forEach(([k, v]) => {
-        if (v > 15 && !["development", "engineer", "project"].includes(k)) {
-            stuffingDetected = true;
-            feedback.push(`Potential keyword stuffing detected for "${k}". Keep repetition low.`);
-        }
-    });
-    if (!stuffingDetected) formattingScore += 10;
+    if (stuffingPenalty > 0) {
+        formattingScore -= stuffingPenalty;
+        feedback.push("Keyword repetition detected. Aim for detailed bullet points rather than repetitive technical lists.");
+    } else {
+        formattingScore += 10;
+    }
 
     // Length check
     const wordCount = words.length;
     let lengthScore = 100;
-    if (wordCount < 200) { lengthScore = 60; formattingScore -= 10; feedback.push("Resume is too short. Add more detail."); }
-    else if (wordCount > 1200) { lengthScore = 80; formattingScore -= 10; feedback.push("Resume is too long. Try to keep it concise."); }
-    else { formattingScore += 10; }
+    if (wordCount < 180) { lengthScore = 60; formattingScore -= 10; feedback.push("Resume depth is thin. Add more technical detail to projects."); }
+    else if (wordCount > 1200) { lengthScore = 80; formattingScore -= 10; feedback.push("Resume is overly long. Recruiter-ready resumes are usually 1-2 pages."); }
+    else { formattingScore += 5; }
 
     // Cap formatting
-    formattingScore = Math.min(formattingScore, 100);
+    formattingScore = Math.max(0, Math.min(formattingScore, 100));
 
     // --- 2. Contextual Weighting (Anti-Inflation) ---
-    // Extract text specifically from Projects and Experience for 1.5x bonus
-    const projectExpMatch = lowerText.match(/(?:experience|projects|work history|academic projects|internships)[\s\S]*?(?:skills|certifications|summary|education|$)/i);
+    // Extract text specifically from Projects and Experience
+    const projectExpMatch = lowerText.match(/(?:experience|projects|work history|academic projects|internships|professional background)[\s\S]*?(?:skills|certifications|summary|education|hobbies|personal info|$)/i);
     const projectExpText = projectExpMatch ? projectExpMatch[0] : "";
 
     const eceScores = {
@@ -543,9 +548,9 @@ export function calculateATSScore(text: string, platformStats?: ATSResult['platf
         software: calculateDomainScore(lowerText, ECE_DOMAINS_TIERED.software, projectExpText)
     };
 
-    // Calculate keyword score (Stricter mapping)
+    // Calculate keyword score (Expert Scalability: 1.6x multiplier for better peak recognition)
     const avgDomainScore = (eceScores.communication + eceScores.digital_vlsi + eceScores.analog_vlsi + eceScores.embedded + eceScores.software) / 5;
-    const keywordScore = Math.min(avgDomainScore * 1.5, 100); // Reduced multiplier from 2.0 to 1.5
+    const keywordScore = Math.min(avgDomainScore * 1.6, 100);
 
     // Total Score
     let score = (sectionScore * 0.4) + (formattingScore * 0.3) + (keywordScore * 0.3);
@@ -669,15 +674,18 @@ export function calculateATSScore(text: string, platformStats?: ATSResult['platf
 }
 
 // Helper for domain scores
-// Helper for domain scores with weighted tiers
+// Helper for domain scores with weighted tiers and high-sensitivity context scaling
 function calculateDomainScore(text: string, tieredKeywords: { tier1: string[], tier2: string[], tier3: string[] }, projectExpText: string = ""): number {
     let rawScore = 0;
+    const lowerText = text.toLowerCase();
+    const lowerProjExp = projectExpText.toLowerCase();
 
+    // 1. Keyword-based Base Score (Restored Weights)
     const processTier = (keywords: string[], weight: number) => {
         keywords.forEach(k => {
-            if (hasMatch(text, k)) {
-                // Context Bonus: Keywords in Projects/Experience count 1.5x
-                if (projectExpText && hasMatch(projectExpText, k)) {
+            if (hasMatch(lowerText, k)) {
+                // Context Bonus: Keywords in Projects/Experience count 1.5x (Elite Recognition)
+                if (lowerProjExp && hasMatch(lowerProjExp, k)) {
                     rawScore += (weight * 1.5);
                 } else {
                     rawScore += weight;
@@ -686,11 +694,26 @@ function calculateDomainScore(text: string, tieredKeywords: { tier1: string[], t
         });
     };
 
-    processTier(tieredKeywords.tier1, 10);
-    processTier(tieredKeywords.tier2, 5);
-    processTier(tieredKeywords.tier3, 2);
+    processTier(tieredKeywords.tier1, 10); // Restored from 6
+    processTier(tieredKeywords.tier2, 5);  // Restored from 3
+    processTier(tieredKeywords.tier3, 2);  // Restored from 1
 
-    return Math.min(rawScore, 100);
+    // 2. Elite Industry Precision Boost (+15 flat points for top hardware Tier-1 companies)
+    // This rewards industry validation (Intel, Qualcomm, etc.) without penalizing skill gaps
+    const TIER1_HARDWARE_COMPANIES = ["intel", "qualcomm", "nvidia", "arm", "broadcom", "amd", "texas instruments", "ti ", "micron", "samsung semiconductor"];
+    const hasEliteInternship = TIER1_HARDWARE_COMPANIES.some(company => {
+        const regex = new RegExp(`\\b${company}\\b[\\s\\S]{0,100}(?:intern|trainee|experience|engineer)`, 'i');
+        return regex.test(lowerProjExp);
+    });
+
+    if (hasEliteInternship) {
+        // Industry boost is only applied if the candidate has at least *some* keywords in that domain
+        if (rawScore > 10) {
+            rawScore += 15;
+        }
+    }
+
+    return Math.min(100, Math.round(rawScore));
 }
 
 // Skill Display Mapping
