@@ -14,7 +14,8 @@ import { motion } from "framer-motion";
 interface SkillRadarProps {
     scores: {
         communication: number;
-        vlsi: number;
+        digital_vlsi: number;
+        analog_vlsi: number;
         embedded: number;
         software: number;
     };
@@ -22,15 +23,42 @@ interface SkillRadarProps {
 
 export default function SkillRadar({ scores }: SkillRadarProps) {
     const data = [
-        { subject: "Communication Systems", A: scores.communication, fullMark: 100 },
-        { subject: "VLSI / Digital Design", A: scores.vlsi, fullMark: 100 },
+        { subject: "Digital VLSI", A: scores.digital_vlsi, fullMark: 100 },
+        { subject: "Analog VLSI/RF", A: scores.analog_vlsi, fullMark: 100 },
         { subject: "Embedded Systems", A: scores.embedded, fullMark: 100 },
-        { subject: "Software & Programming", A: scores.software, fullMark: 100 },
+        { subject: "Communication/Signal Processing", A: scores.communication, fullMark: 100 },
+        { subject: "Software/Programming", A: scores.software, fullMark: 100 },
     ];
 
     // Find strongest domain
-    const maxScore = Math.max(scores.communication, scores.vlsi, scores.embedded, scores.software);
-    const strongestDomain = data.find(d => d.A === maxScore)?.subject;
+    const maxScore = Math.max(scores.communication, scores.digital_vlsi, scores.analog_vlsi, scores.embedded, scores.software);
+    const strongestDomain = data.find(d => d.A === maxScore)?.subject || "";
+
+    // Custom tick renderer to handle long labels without truncation
+    const renderCustomAxisTick = (props: any) => {
+        const { x, y, payload, textAnchor, index } = props;
+        // Split on / or space for very long ones
+        const parts = payload.value.split("/");
+
+        return (
+            <g transform={`translate(${x},${y})`}>
+                {parts.map((part: string, i: number) => (
+                    <text
+                        key={i}
+                        x={0}
+                        y={i * 13 - (parts.length > 1 ? 6 : 0)}
+                        textAnchor={textAnchor}
+                        fill="var(--foreground)"
+                        fontSize={10.7}
+                        fontWeight={500}
+                        className="select-none"
+                    >
+                        {part.trim()}
+                    </text>
+                ))}
+            </g>
+        );
+    };
 
     return (
         <motion.div
@@ -42,16 +70,16 @@ export default function SkillRadar({ scores }: SkillRadarProps) {
                 Domain Profile
             </h3>
 
-            <div className="h-[320px] w-full mt-2 relative">
+            <div className="h-[420px] w-full mt-2 relative">
                 {/* Background Glow Effect */}
                 <div className="absolute inset-0 bg-primary/5 rounded-full blur-3xl transform scale-75" />
 
                 <ResponsiveContainer width="100%" height="100%">
-                    <RadarChart cx="50%" cy="50%" outerRadius="60%" data={data} margin={{ top: 30, right: 30, bottom: 30, left: 30 }}>
+                    <RadarChart cx="50%" cy="50%" outerRadius="65%" data={data} margin={{ top: 20, right: 45, bottom: 20, left: 45 }}>
                         <PolarGrid stroke="var(--border)" strokeOpacity={0.5} />
                         <PolarAngleAxis
                             dataKey="subject"
-                            tick={{ fill: "var(--foreground)", fontSize: 10, fontWeight: 500 }}
+                            tick={renderCustomAxisTick}
                         />
                         <PolarRadiusAxis angle={30} domain={[0, 100]} tick={false} axisLine={false} />
                         <Tooltip

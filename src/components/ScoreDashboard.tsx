@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import SkillRadar from "./SkillRadar";
 import RolePredictor from "./RolePredictor";
 import ContactChecklist from "./ContactChecklist";
+import ConfidenceScore from "./ConfidenceScore";
 
 interface ScoreDashboardProps {
     analysis: ATSResult;
@@ -143,6 +144,9 @@ export default function ScoreDashboard({ analysis, onReset }: ScoreDashboardProp
 
                 {/* RIGHT COLUMN: Roles */}
                 <div className="w-full md:w-1/3 space-y-6">
+                    {/* NEW: Confidence Score */}
+                    {rolePrediction && <ConfidenceScore score={rolePrediction.confidenceScore} />}
+
                     {/* NEW: Role Predictor */}
                     {rolePrediction && <RolePredictor prediction={rolePrediction} />}
                 </div>

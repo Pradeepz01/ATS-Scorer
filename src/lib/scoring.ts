@@ -14,7 +14,8 @@ export interface ATSResult {
     // ECE Specifics
     eceScores: {
         communication: number;
-        vlsi: number;
+        digital_vlsi: number;
+        analog_vlsi: number;
         embedded: number;
         software: number;
     };
@@ -32,6 +33,7 @@ export interface ATSResult {
             min: number;
             max: number;
         };
+        confidenceScore: number;
     };
     educationDetails?: {
         college: string;
@@ -66,12 +68,34 @@ export interface ATSResult {
     };
 }
 
-// ECE Domain Keywords (Kept for basic eceScores calculation)
-const ECE_DOMAINS = {
-    communication: ["signal processing", "dsp", "matlab", "fft", "filters", "wireless", "5g", "lte", "modulation", "communication systems", "rf", "antenna", "spectrum"],
-    vlsi: ["verilog", "vhdl", "rtl", "systemverilog", "fpga", "asic", "vivado", "quartus", "cadence", "virtuoso", "synopsys", "layout", "cmos", "mosfet", "digital design", "timing analysis"],
-    embedded: ["embedded c", "microcontroller", "arduino", "stm32", "rtos", "arm", "cortex", "uart", "i2c", "spi", "firmware", "iot", "raspberry pi", "sensors", "actuators"],
-    software: ["python", "c++", "data structures", "algorithms", "oops", "java", "sql", "machine learning", "ai", "tensorflow", "pytorch", "web development", "react", "node"]
+// ECE Domain Keywords Restructured into Tiers
+// Tier 1 (Core): 10 pts, Tier 2 (Pro): 5 pts, Tier 3 (Exposure): 2 pts
+const ECE_DOMAINS_TIERED = {
+    communication: {
+        tier1: ["signal processing", "wireless", "communication systems", "information theory"],
+        tier2: ["matlab", "dsp", "fft", "filters", "5g", "lte", "modulation", "sampling", "convolution", "transforms", "equalization", "ofdm"],
+        tier3: ["simulink", "wi-fi", "bluetooth", "lorawan", "spectrogram"]
+    },
+    digital_vlsi: {
+        tier1: ["verilog", "vhdl", "systemverilog", "asic", "fpga", "computer architecture"],
+        tier2: ["vivado", "quartus", "sta", "dft", "logic synthesis", "modelsim", "physical design", "verification", "uvm", "soc", "risc-v"],
+        tier3: ["digital design", "logic design", "fsm", "testbench"]
+    },
+    analog_vlsi: {
+        tier1: ["analog design", "rf design", "mixed signal", "cmos", "mosfet", "op amp", "operational amplifier", "bandgap reference", "ptat", "ctat"],
+        tier2: ["virtuoso", "hspice", "ngspice", "spectre", "ltspice", "lt spice", "layout design", "adc", "dac", "pll", "lna", "mixer", "vco", "rfic", "pmu", "biasing", "oscillators"],
+        tier3: ["matching networks", "smith chart", "vna", "spectrum analyzer", "s-parameters", "noise figure", "linearity", "antenna design", "scl 180nm", "transient analysis", "dc sweep", "temperature sweep"]
+    },
+    embedded: {
+        tier1: ["embedded c", "microcontroller", "rtos", "arm", "cortex"],
+        tier2: ["stm32", "arduino", "esp32", "uart", "i2c", "spi", "iot", "bare metal", "device drivers", "interrupts", "timers"],
+        tier3: ["raspberry pi", "mqtt", "lora", "sensors", "actuators"]
+    },
+    software: {
+        tier1: ["c++", "python", "data structures", "algorithms", "oops"],
+        tier2: ["java", "sql", "machine learning", "ai", "tensorflow", "pytorch", "git", "linux", "operating systems"],
+        tier3: ["web development", "react", "node", "docker", "api design"]
+    }
 };
 
 // Semantic Skill/Alias Mapping
@@ -86,7 +110,8 @@ const SKILL_ALIASES: Record<string, string[]> = {
     "verilog": ["hdl", "rtl coding", "hdl programming"],
     "vhdl": ["hdl", "rtl coding"],
     "digital design": ["logic design", "combinational logic", "sequential logic"],
-    "eda tools": ["vivado", "quartus", "cadence", "virtuoso", "synopsys", "modelsim", "xilinx", "altera"],
+    "eda tools": ["vivado", "quartus", "cadence", "virtuoso", "synopsys", "modelsim", "xilinx", "altera", "spectre", "hspice", "ngspice", "ltspice"],
+    "cmos layout": ["drc", "lvs", "physical verification", "layout design", "gdsii", "mask design", "post-layout"],
 
     // Communication
     "signal processing": ["dsp", "fft", "filtering", "sampling", "convolution", "transforms"],
@@ -148,14 +173,26 @@ function extractCGPA(text: string): number {
     return 0;
 }
 
-// Helper to map roles to our 4 radar domains
+// Helper to map roles to our 5 radar domains
 function getRoleDomain(role: RoleData): string {
     const title = role.role.toLowerCase();
-    const domain = role.domain.toLowerCase();
-    if (domain.includes("software") || title.includes("full-stack") || title.includes("web dev")) return "software";
+    const domain = (role.domain || "").toLowerCase();
+
+    // Software
+    if (domain.includes("software") || title.includes("full-stack") || title.includes("web dev") || title.includes("programmer analyst")) return "software";
+
+    // Embedded
     if (title.includes("embedded") || title.includes("firmware") || title.includes("iot") || title.includes("microcontroller") || title.includes("rtos")) return "embedded";
-    if (title.includes("vlsi") || title.includes("asic") || title.includes("rtl") || title.includes("fpga") || title.includes("physical design") || title.includes("verification") || title.includes("digital design") || title.includes("dft")) return "vlsi";
+
+    // Analog / RF VLSI
+    if (title.includes("analog") || title.includes("mixed signal") || title.includes("virtuoso") || (title.includes("rf") && (title.includes("design") || title.includes("ic")))) return "analog_vlsi";
+
+    // Digital VLSI
+    if (title.includes("vlsi") || title.includes("asic") || title.includes("rtl") || title.includes("fpga") || title.includes("digital design") || title.includes("dft") || title.includes("verification") || title.includes("static timing")) return "digital_vlsi";
+
+    // Communication
     if (title.includes("communication") || title.includes("rf") || title.includes("antenna") || title.includes("wireless") || title.includes("dsp") || title.includes("signal processing")) return "communication";
+
     return "core";
 }
 
@@ -210,12 +247,13 @@ function predictRole(eceScores: ATSResult['eceScores'], text: string) {
         let domainScore = 0;
         if (rDomain === "software") domainScore = eceScores.software;
         else if (rDomain === "embedded") domainScore = eceScores.embedded;
-        else if (rDomain === "vlsi") domainScore = eceScores.vlsi;
+        else if (rDomain === "digital_vlsi") domainScore = eceScores.digital_vlsi;
+        else if (rDomain === "analog_vlsi") domainScore = eceScores.analog_vlsi;
         else if (rDomain === "communication") domainScore = eceScores.communication;
-        else domainScore = Math.max(eceScores.vlsi, eceScores.embedded);
+        else domainScore = Math.max(eceScores.digital_vlsi, eceScores.embedded);
 
         // **Aggressive Software Bias Fix**
-        if (rDomain === "software" && (eceScores.embedded > 30 || eceScores.vlsi > 30 || eceScores.communication > 30)) {
+        if (rDomain === "software" && (eceScores.embedded > 30 || eceScores.digital_vlsi > 30 || eceScores.analog_vlsi > 30 || eceScores.communication > 30)) {
             domainScore *= 0.4;
         }
 
@@ -225,7 +263,39 @@ function predictRole(eceScores: ATSResult['eceScores'], text: string) {
             if (hasMatch(text, skill)) skillMatchCount++;
         });
 
-        const skillScore = (skillMatchCount / roleData.skills.length) * 100;
+        let skillScore = (skillMatchCount / roleData.skills.length) * 100;
+
+        // --- SPECIFIC ROLE LOGIC (USER REQUEST: Mithun Benchmark) ---
+
+        // 1. Verification Penalty (Strict SV/UVM requirement)
+        if (roleData.role.includes("Verification") && !hasMatch(text, "SystemVerilog") && !hasMatch(text, "UVM")) {
+            skillScore *= 0.3; // Heavy penalty for missing core verification stack
+        }
+
+        // 2. Embedded/Software Penalty for Hardware-Heavy profiles
+        if (roleData.role.includes("Embedded") || roleData.domain === "Software") {
+            const hardwareSignals = ["analog design", "cadence", "virtuoso", "digital design", "verilog"];
+            if (hardwareSignals.some(s => hasMatch(text, s)) && !hasMatch(text, "embedded c") && !hasMatch(text, "rtos")) {
+                skillScore *= 0.5;
+            }
+        }
+
+        // 3. RF / DSP Penalty
+        if (roleData.role.includes("RF") || roleData.role.includes("Communication")) {
+            // RF specific check for Analog-heavy candidates
+            if (eceScores.analog_vlsi > 50 && !hasMatch(text, "hfss") && !hasMatch(text, "ads") && !hasMatch(text, "antenna")) {
+                skillScore *= 0.4; // Penalize RF if tools are missing but Analog is strong
+            }
+            if (!hasMatch(text, "dsp") && !hasMatch(text, "signal processing") && !hasMatch(text, "fft")) {
+                skillScore *= 0.2;
+            }
+        }
+
+        // 4. Analog Design Primary Boost (Project specific)
+        if (roleData.role.includes("Analog") && hasMatch(text, "bandgap") && hasMatch(text, "virtuoso")) {
+            skillScore += 15; // Precision boost for strong analog project signal
+        }
+
         const totalScore = (domainScore * 0.4) + (skillScore * 0.6);
 
         return { ...roleData, score: totalScore, skillScore, rDomain };
@@ -241,7 +311,8 @@ function predictRole(eceScores: ATSResult['eceScores'], text: string) {
     const rankedDomains = [
         { name: "communication", score: eceScores.communication },
         { name: "embedded", score: eceScores.embedded },
-        { name: "vlsi", score: eceScores.vlsi },
+        { name: "digital_vlsi", score: eceScores.digital_vlsi },
+        { name: "analog_vlsi", score: eceScores.analog_vlsi },
         { name: "software", score: eceScores.software * 0.5 } // 50% dampener for selection
     ].sort((a, b) => b.score - a.score);
 
@@ -259,26 +330,25 @@ function predictRole(eceScores: ATSResult['eceScores'], text: string) {
     if (slot1) selectedRoles.push(slot1);
     else if (scoredRoles.length > 0) selectedRoles.push(scoredRoles[0]);
 
-    // Slot 2: Secondary Domain
-    const slot2 = rankedDomains[1].score > 20
+    // Slot 2: Secondary Domain (or Best available in Primary Domain if secondary is weak)
+    const slot2 = rankedDomains[1].score > 30
         ? findBestRole(rankedDomains[1].name, selectedRoles)
         : findBestRole(rankedDomains[0].name, selectedRoles);
 
     if (slot2) selectedRoles.push(slot2);
     else {
-        const nextBest = scoredRoles.find(r => !selectedRoles.includes(r));
+        const nextBest = scoredRoles.find(r => !selectedRoles.includes(r) && r.score > 30);
         if (nextBest) selectedRoles.push(nextBest);
     }
 
-    // Slot 3: Tertiary Domain
+    // Slot 3: Tertiary fallback or best available specialized role
     const slot3 = rankedDomains[2].score > 20
         ? findBestRole(rankedDomains[2].name, selectedRoles)
-        : null;
+        : findBestRole(rankedDomains[0].name, selectedRoles) || findBestRole(rankedDomains[1].name, selectedRoles);
 
-    if (slot3) selectedRoles.push(slot3);
+    if (slot3 && !selectedRoles.includes(slot3)) selectedRoles.push(slot3);
     else {
-        // Fallback: Next best overall
-        const nextBest = scoredRoles.find(r => !selectedRoles.includes(r));
+        const nextBest = scoredRoles.find(r => !selectedRoles.includes(r) && r.score > 20);
         if (nextBest) selectedRoles.push(nextBest);
     }
 
@@ -302,7 +372,8 @@ function predictRole(eceScores: ATSResult['eceScores'], text: string) {
             let baseMin = 2.5;
             let baseMax = 3.8;
 
-            if (rDomain === "vlsi") { baseMin = 3.6; baseMax = 5.5; }
+            if (rDomain === "digital_vlsi") { baseMin = 3.6; baseMax = 5.5; }
+            else if (rDomain === "analog_vlsi") { baseMin = 3.8; baseMax = 6.0; } // Higher base for Analog IC (₹7.0-9.0 range after merit)
             else if (rDomain === "embedded") { baseMin = 3.0; baseMax = 4.5; }
             else if (rDomain === "software") { baseMin = 3.3; baseMax = 5.0; }
 
@@ -370,7 +441,10 @@ function predictRole(eceScores: ATSResult['eceScores'], text: string) {
         salaryPrediction: {
             min: parseFloat(predMin.toFixed(1)),
             max: parseFloat(predMax.toFixed(1))
-        }
+        },
+        topScore: scoredRoles[0]?.score || 0,
+        secondScore: scoredRoles[1]?.score || 0,
+        maxDomainScore: Math.max(...Object.values(eceScores))
     };
 }
 
@@ -462,14 +536,15 @@ export function calculateATSScore(text: string, platformStats?: ATSResult['platf
     const projectExpText = projectExpMatch ? projectExpMatch[0] : "";
 
     const eceScores = {
-        communication: calculateDomainScore(lowerText, ECE_DOMAINS.communication, projectExpText),
-        vlsi: calculateDomainScore(lowerText, ECE_DOMAINS.vlsi, projectExpText),
-        embedded: calculateDomainScore(lowerText, ECE_DOMAINS.embedded, projectExpText),
-        software: calculateDomainScore(lowerText, ECE_DOMAINS.software, projectExpText)
+        communication: calculateDomainScore(lowerText, ECE_DOMAINS_TIERED.communication, projectExpText),
+        digital_vlsi: calculateDomainScore(lowerText, ECE_DOMAINS_TIERED.digital_vlsi, projectExpText),
+        analog_vlsi: calculateDomainScore(lowerText, ECE_DOMAINS_TIERED.analog_vlsi, projectExpText),
+        embedded: calculateDomainScore(lowerText, ECE_DOMAINS_TIERED.embedded, projectExpText),
+        software: calculateDomainScore(lowerText, ECE_DOMAINS_TIERED.software, projectExpText)
     };
 
     // Calculate keyword score (Stricter mapping)
-    const avgDomainScore = (eceScores.communication + eceScores.vlsi + eceScores.embedded + eceScores.software) / 4;
+    const avgDomainScore = (eceScores.communication + eceScores.digital_vlsi + eceScores.analog_vlsi + eceScores.embedded + eceScores.software) / 5;
     const keywordScore = Math.min(avgDomainScore * 1.5, 100); // Reduced multiplier from 2.0 to 1.5
 
     // Total Score
@@ -484,8 +559,11 @@ export function calculateATSScore(text: string, platformStats?: ATSResult['platf
 
     // Find keywords for display
     const foundKeywords: string[] = [];
-    Object.values(ECE_DOMAINS).flat().forEach(k => {
-        if (hasMatch(lowerText, k)) foundKeywords.push(formatSkill(k));
+    Object.values(ECE_DOMAINS_TIERED).forEach(domain => {
+        const allK = [...domain.tier1, ...domain.tier2, ...domain.tier3];
+        allK.forEach(k => {
+            if (hasMatch(lowerText, k)) foundKeywords.push(formatSkill(k));
+        });
     });
 
     // --- 3. Education Parsing ---
@@ -536,11 +614,11 @@ export function calculateATSScore(text: string, platformStats?: ATSResult['platf
 
     if (platformStats?.hdlbits?.solvedCount && platformStats.hdlbits.solvedCount > 0) {
         const solved = platformStats.hdlbits.solvedCount;
-        // Conservative Logic: 0.4 points per solved problem (capped at 20 points)
-        extraVLSIPoints = Math.min(solved * 0.4, 20);
+        // Ultra-Conservative Logic: 1 point per 8 solved problems (capped at 20 points)
+        extraVLSIPoints = Math.min(solved / 8, 20);
 
-        eceScores.vlsi = Math.min(eceScores.vlsi + extraVLSIPoints, 100);
-        feedback.push(`HDLBits Verified: ${solved} solved (+${Math.round(extraVLSIPoints)} Skill points to VLSI).`);
+        eceScores.digital_vlsi = Math.min(eceScores.digital_vlsi + extraVLSIPoints, 100);
+        feedback.push(`HDLBits Verified: ${solved} solved (+${Math.round(extraVLSIPoints)} Skill points to Digital VLSI).`);
     } else if (contactValidation.hdlbits) {
         feedback.push("HDLBits profile found but stats could not be verified.");
     }
@@ -549,7 +627,21 @@ export function calculateATSScore(text: string, platformStats?: ATSResult['platf
     eceScores.software = Math.min(eceScores.software + extraSoftwarePoints, 100);
 
     // --- 6. Role Prediction (Using augmented eceScores) ---
-    const { primaryRole, secondaryRoles, allRoles, salaryPrediction } = predictRole(eceScores, lowerText);
+    const { primaryRole, secondaryRoles, allRoles, salaryPrediction, topScore, secondScore, maxDomainScore } = predictRole(eceScores, lowerText);
+
+    // --- 7. Confidence Score Calculation (System Confidence) ---
+    // 1. Role Strength (40%): How well the top role matches
+    const roleWeight = Math.min(topScore / 80 * 40, 40);
+    // 2. Role Separation (10%): If one role is significantly better than second
+    const separationWeight = Math.min(Math.max(0, (topScore - secondScore) / 20) * 10, 10);
+    // 3. Keyword Density (20%): Depth of technical knowledge
+    const skillWeight = Math.min(keywordScore / 60 * 20, 20);
+    // 4. Completeness (20%): Based on section Presence
+    const completenessWeight = (sectionScore / 100) * 20;
+    // 5. Domain Clarity (10%): Distinctiveness of the radar profile
+    const clarityWeight = Math.min(Math.max(0, (maxDomainScore - avgDomainScore) / 30) * 10, 10);
+
+    const confidenceScore = Math.round(roleWeight + separationWeight + skillWeight + completenessWeight + clarityWeight);
 
     // Recalculate keyword/total score with bonuses
     const finalKeywordScore = Math.min(keywordScore + (extraSoftwarePoints + extraVLSIPoints) / 2, 100);
@@ -569,7 +661,7 @@ export function calculateATSScore(text: string, platformStats?: ATSResult['platf
         foundKeywords: [...new Set(foundKeywords)],
         feedback: [...new Set(feedback)], // dedup
         eceScores,
-        rolePrediction: { primaryRole, secondaryRoles, allRoles, salaryPrediction },
+        rolePrediction: { primaryRole, secondaryRoles, allRoles, salaryPrediction, confidenceScore },
         educationDetails,
         contactValidation,
         platformStats
@@ -577,21 +669,28 @@ export function calculateATSScore(text: string, platformStats?: ATSResult['platf
 }
 
 // Helper for domain scores
-// Helper for domain scores with contextual weighting
-function calculateDomainScore(text: string, keywords: string[], projectExpText: string = ""): number {
+// Helper for domain scores with weighted tiers
+function calculateDomainScore(text: string, tieredKeywords: { tier1: string[], tier2: string[], tier3: string[] }, projectExpText: string = ""): number {
     let rawScore = 0;
-    keywords.forEach(k => {
-        if (hasMatch(text, k)) {
-            // Context Bonus: Keywords in Projects/Experience count 1.5x
-            if (projectExpText && hasMatch(projectExpText, k)) {
-                rawScore += 1.5;
-            } else {
-                rawScore += 1.0;
+
+    const processTier = (keywords: string[], weight: number) => {
+        keywords.forEach(k => {
+            if (hasMatch(text, k)) {
+                // Context Bonus: Keywords in Projects/Experience count 1.5x
+                if (projectExpText && hasMatch(projectExpText, k)) {
+                    rawScore += (weight * 1.5);
+                } else {
+                    rawScore += weight;
+                }
             }
-        }
-    });
-    // Harder difficulty: 20 technical units required for 100%
-    return Math.min(Math.round((rawScore / 20) * 100), 100);
+        });
+    };
+
+    processTier(tieredKeywords.tier1, 10);
+    processTier(tieredKeywords.tier2, 5);
+    processTier(tieredKeywords.tier3, 2);
+
+    return Math.min(rawScore, 100);
 }
 
 // Skill Display Mapping

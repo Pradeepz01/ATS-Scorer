@@ -260,15 +260,15 @@ export const ROLES_DATA: RoleData[] = [
         "description": "Converts RTL circuit descriptions into manufacturable silicon layouts using physical design tools. Performs floor planning, placement, routing, and timing analysis to optimize area and power. Critical for bringing designs from logic to actual silicon."
     },
     {
-        "role": "DFT / Verification Engineer",
+        "role": "Verification Engineer (SV/UVM)",
         "domain": "Core",
         "skills": [
-            "Verilog/SystemVerilog",
-            "Test synthesis",
-            "ATPG",
-            "Scan insertion",
+            "SystemVerilog",
+            "UVM",
+            "Functional Verification",
             "Formal verification",
             "JTAG/Boundary scan",
+            "Assertion-Based Verification (SVA)",
             "Simulation tools",
             "Problem-solving",
             "Digital design"
@@ -427,19 +427,19 @@ export const ROLES_DATA: RoleData[] = [
         "description": "Designs RF systems, antennas, and communication subsystems for wireless networks, satellites, and IoT devices. Works with RF simulation tools, performs link budget analysis, and validates performance using test equipment. Combines electronics theory with communication systems knowledge."
     },
     {
-        "role": "Analog Mixed-Signal Design Engineer",
+        "role": "Analog VLSI / Analog IC Design Engineer",
         "domain": "Core",
         "skills": [
             "Analog circuit design",
             "Mixed-signal design",
             "SPICE simulation",
+            "CMOS Layout (DRC/LVS)",
             "Layout design",
-            "Power supply design",
+            "OP-AMP Design",
+            "Bandgap Reference",
             "Noise analysis",
-            "Bandwidth optimization",
             "CAD tools",
-            "Problem-solving",
-            "Electronics fundamentals"
+            "Problem-solving"
         ],
         "companies": [
             "Microchip",
@@ -457,6 +457,65 @@ export const ROLES_DATA: RoleData[] = [
             "internship": "₹30,000/month"
         },
         "description": "Designs analog circuits and mixed-signal blocks combining analog and digital functions for integrated circuits. Performs circuit simulation, layout design, and noise/power analysis. Requires deep understanding of analog electronics, SPICE simulation, and precision circuit design."
+    },
+    {
+        "role": "Mixed-Signal VLSI Engineer",
+        "domain": "Core",
+        "skills": [
+            "Analog circuit design",
+            "Mixed-signal design",
+            "ADC/DAC",
+            "CMOS Layout (DRC/LVS)",
+            "Layout design",
+            "PLL",
+            "Spice simulation",
+            "Mixed-signal verification",
+            "Problem-solving"
+        ],
+        "companies": [
+            "Texas Instruments",
+            "Analog Devices",
+            "Microchip",
+            "NXP",
+            "Qualcomm"
+        ],
+        "salary": {
+            "avg": "₹12-16 LPA",
+            "highest": "₹22 LPA",
+            "lowest": "₹8 LPA",
+            "internship": "₹40,000/month"
+        },
+        "description": "Bridges the gap between analog and digital domains by designing and verifying mixed-signal integrated circuits. Involves ADC/DAC design, PLL frequency synthesizers, and complex layout verification."
+    },
+    {
+        "role": "Entry-level VLSI Design Engineer",
+        "domain": "Core",
+        "skills": [
+            "Digital design",
+            "Verilog",
+            "CMOS logic",
+            "Flip-flops",
+            "FSM",
+            "Static Timing Analysis",
+            "Circuit theory",
+            "Logic gates",
+            "Problem-solving"
+        ],
+        "companies": [
+            "Microchip",
+            "Samsung R&D",
+            "HCL Tech",
+            "Wipro VLSI",
+            "Qualcomm",
+            "Startup VLSI firms"
+        ],
+        "salary": {
+            "avg": "₹6-9 LPA",
+            "highest": "₹10 LPA",
+            "lowest": "₹3.5 LPA",
+            "internship": "₹20,000/month"
+        },
+        "description": "Entry-level position focusing on digital design fundamentals, RTL coding in Verilog, and basic physical design flows. Ideal for freshers with strong academic projects in VLSI."
     },
     {
         "role": "Software Developer / Full-Stack Engineer",
