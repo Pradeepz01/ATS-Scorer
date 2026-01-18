@@ -8,23 +8,24 @@ interface RolePredictorProps {
     prediction: {
         primaryRole: string;
         secondaryRoles: string[];
-        name: string;
-        missingSkills: string[];
-        nextStepEnhancements?: string[];
-        salary: {
-            avg: string;
-            highest: string;
-            lowest: string;
-            internship: string;
+        allRoles: {
+            name: string;
+            missingSkills: string[];
+            nextStepEnhancements?: string[];
+            salary: {
+                avg: string;
+                highest: string;
+                lowest: string;
+                internship: string;
+            };
+            companies: string[];
+            description: string;
+        }[];
+        salaryPrediction: {
+            min: number;
+            max: number;
         };
-        companies: string[];
-        description: string;
-    }[];
-    salaryPrediction: {
-        min: number;
-        max: number;
     };
-};
 }
 
 export default function RolePredictor({ prediction }: RolePredictorProps) {
