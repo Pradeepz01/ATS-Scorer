@@ -35,6 +35,7 @@ export interface ATSResult {
             max: number;
         };
         confidenceScore: number;
+        eliteScore?: number;
     };
     educationDetails?: {
         college: string;
@@ -447,6 +448,8 @@ function predictRole(eceScores: ATSResult['eceScores'], text: string, projectExp
         return { ...roleData, role: finalRoleName, score: totalScore, skillScore, rDomain };
     });
 
+    type ScoredRole = (typeof scoredRoles)[0];
+
     // 2. Sort by score
     scoredRoles.sort((a, b) => b.score - a.score);
 
@@ -513,20 +516,11 @@ function predictRole(eceScores: ATSResult['eceScores'], text: string, projectExp
     const primaryRole = selectedRoles[0]?.role || "Unknown Role";
     const secondaryRoles = selectedRoles.slice(1).map(r => r.role);
 
-    // Role discovery improvement: Ensure high confidence or use GET fallback
-    const rolesForPrediction = [selectedRoles[0]];
-
-    // --- Weighted Salary Prediction (Fortune 500 & DeepTech Startups 2025-26) ---
-    // Using a refined Slab-based model for Freshers to ensure benchmark alignment
-    // Now calibrated for "Elite" premiums (up to 25LPA for Tapeout/RISC-V)
-
-    const eliteBonusMin = eliteScore * 0.5; // e.g., 20 score -> +10 LPA (aggressively rewards tapeouts)
-    const eliteBonusMax = eliteScore * 0.7;
 
     // --- 3. Salary Prediction (Linear Model with Primary Role Base) ---
     // We use the Primary Role to set the base sector salary to prevent averaging dilution.
-    const primaryRoleData = selectedRoles[0];
-    const rDomain = primaryRoleData ? (primaryRoleData as any).rDomain : "core";
+    const primaryRoleData = selectedRoles[0] as ScoredRole;
+    const rDomain = primaryRoleData ? primaryRoleData.rDomain : "core";
 
     // Base Slabs (Strict Calibration for 2026 Freshers)
     let baseMin = 3.5;
@@ -589,7 +583,7 @@ function predictRole(eceScores: ATSResult['eceScores'], text: string, projectExp
     baseMin *= (1.0 + (depthPoints * 0.002));
 
     // Step D: Confidence Penalty (Softened for specialists)
-    const confidence = (primaryRoleData as any)?.skillScore / 100 || 0.5;
+    const confidence = primaryRoleData?.skillScore / 100 || 0.5;
     if (confidence < 0.45) {
         const penaltyFactor = eliteScore > 5 ? 0.7 : 0.4;
         baseMax = baseMin + (baseMax - baseMin) * penaltyFactor;
@@ -784,8 +778,6 @@ function generateSuggestions(roleName: string, text: string, eliteScore: number 
 
     const roleLower = roleName.toLowerCase();
     const lowerText = text.toLowerCase();
-    let key = "trainee";
-
     // 1. Determine Priority Domains based on Role
     let domains: string[] = ["trainee"]; // Default
 
@@ -1075,7 +1067,7 @@ export function calculateATSScore(text: string, platformStats?: ATSResult['platf
         foundKeywords: [...new Set(foundKeywords)],
         feedback: [...new Set(feedback)], // dedup
         eceScores,
-        rolePrediction: { primaryRole, secondaryRoles, allRoles, salaryPrediction, confidenceScore },
+        rolePrediction: { primaryRole, secondaryRoles, allRoles, salaryPrediction, confidenceScore, eliteScore },
         educationDetails,
         contactValidation,
         platformStats

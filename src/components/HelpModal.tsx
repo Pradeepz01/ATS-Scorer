@@ -120,7 +120,7 @@ export default function HelpModal() {
                                                 </li>
                                                 <li className="flex gap-2">
                                                     <span className="text-blue-500">•</span>
-                                                    Use measurable outcomes (e.g., "Reduced power by 15%")
+                                                    Use measurable outcomes (e.g., &quot;Reduced power by 15%&quot;)
                                                 </li>
                                             </ul>
                                         </div>

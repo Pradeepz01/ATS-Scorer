@@ -53,7 +53,7 @@ export async function POST(req: NextRequest) {
                     if (leetcodeMatch && leetcodeMatch[1]) {
                         const username = leetcodeMatch[1].replace(/\/$/, "");
 
-                        const fetchLeetCode = async (apiIndex: number): Promise<any> => {
+                        const fetchLeetCode = async (apiIndex: number): Promise<Record<string, number | string | undefined> | null> => {
                             if (apiIndex > 2) return null; // Logic Exhausted
 
                             const endpoints = [
