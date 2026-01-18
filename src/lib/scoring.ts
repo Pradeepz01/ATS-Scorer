@@ -657,6 +657,11 @@ function predictRole(eceScores: ATSResult['eceScores'], text: string, projectExp
 }
 
 // --- Role Improvement Suggestions Map ---
+interface SuggestionRule {
+    action: string;
+    suppressIf: string[];
+}
+
 const SUGGESTION_DATABASE: Record<string, SuggestionRule[]> = {
     "fpga": [
         {
