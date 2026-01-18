@@ -1,6 +1,5 @@
-"use client";
-
 import { motion } from "framer-motion";
+import InfoTooltip from "./InfoTooltip";
 
 interface ConfidenceScoreProps {
     score: number;
@@ -65,7 +64,10 @@ export default function ConfidenceScore({ score }: ConfidenceScoreProps) {
 
             <div className="flex-1">
                 <div className="flex items-center gap-2">
-                    <span className="text-sm font-semibold text-foreground">System Confidence</span>
+                    <span className="text-sm font-semibold text-foreground">
+                        System Confidence
+                        <InfoTooltip content="Indicates system certainty based on keyword density, section completeness, and context consistency." />
+                    </span>
                     <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-tight bg-white/10 ${color} border border-current`}>
                         {label}
                     </span>
@@ -73,12 +75,6 @@ export default function ConfidenceScore({ score }: ConfidenceScoreProps) {
                 <p className="text-[11px] text-muted-foreground mt-1 leading-tight">
                     {description}
                 </p>
-                <div className="group relative inline-block mt-2">
-                    <span className="text-[10px] text-primary/70 cursor-help underline underline-offset-2">What is this?</span>
-                    <div className="absolute bottom-full left-0 mb-2 w-48 p-2 bg-popover text-popover-foreground text-[10px] rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 border border-border">
-                        This score reflects the system&apos;s certainty in its own recommendation. It is derived from role fit, keyword density, and resume completeness.
-                    </div>
-                </div>
             </div>
         </div>
     );

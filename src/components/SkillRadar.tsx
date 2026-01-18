@@ -1,15 +1,8 @@
 "use client";
 
-import {
-    Radar,
-    RadarChart,
-    PolarGrid,
-    PolarAngleAxis,
-    PolarRadiusAxis,
-    ResponsiveContainer,
-    Tooltip,
-} from "recharts";
+import { Tooltip, ResponsiveContainer, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar } from "recharts";
 import { motion } from "framer-motion";
+import InfoTooltip from "./InfoTooltip";
 
 interface SkillRadarProps {
     scores: {
@@ -69,6 +62,7 @@ export default function SkillRadar({ scores }: SkillRadarProps) {
         >
             <h3 className="text-lg font-semibold mb-1 text-center bg-clip-text text-transparent bg-gradient-to-r from-primary to-primary/60">
                 Domain Profile
+                <InfoTooltip content="Shows skill distribution across 5 ECE domains. Each domain uses a 3-tier weighted scoring system." />
             </h3>
 
             <div className="h-[420px] w-full mt-2 relative">

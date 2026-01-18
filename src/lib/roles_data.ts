@@ -361,13 +361,14 @@ export const ROLES_DATA: RoleData[] = [
         "skills": [
             "FPGA (Xilinx, Altera)",
             "Verilog/VHDL",
+            "RTL Design",
+            "Flight Controller",
+            "UAV/Drone systems",
             "Embedded systems",
             "Real-time systems",
-            "Low-power design",
             "Hardware simulation",
             "Debugging",
             "Aerospace standards",
-            "Problem-solving",
             "Digital design"
         ],
         "companies": [
@@ -382,7 +383,70 @@ export const ROLES_DATA: RoleData[] = [
             "lowest": "₹8 LPA",
             "internship": "₹15,000/month"
         },
-        "description": "Designs and verifies FPGA-based control systems for aerospace and space applications where reliability and real-time performance are critical. Works with safety-critical systems and must understand aerospace standards. Combines hardware design with embedded systems expertise."
+        "description": "Entry-level FPGA role focused on developing and verifying RTL modules for control systems. Involves writing Verilog/VHDL, running simulations, and supporting hardware implementation under guidance. key focus on timing basics and hardware-software integration."
+    },
+    {
+        "role": "RTL Design & Verification Engineer",
+        "domain": "Core",
+        "skills": [
+            "Verilog",
+            "SystemVerilog",
+            "RTL Design",
+            "UVM",
+            "Functional Verification",
+            "ASIC/FPGA",
+            "Logic Synthesis",
+            "Static Timing Analysis (STA)",
+            "Simulation tools (ModelSim, Questa)",
+            "Digital design"
+        ],
+        "companies": [
+            "Intel",
+            "NVIDIA",
+            "Qualcomm",
+            "AMD",
+            "Samsung",
+            "Tessolve",
+            "Wipro VLSI"
+        ],
+        "salary": {
+            "avg": "₹9-12 LPA",
+            "highest": "₹15 LPA",
+            "lowest": "₹7 LPA",
+            "internship": "₹30,000/month"
+        },
+        "description": "Focuses on converting digital specifications into Verilog/SystemVerilog code and verifying functionality. Involves writing testbenches, running regression tests, and debugging logic failures. Ideal for candidates with strong digital fundamentals."
+    },
+    {
+        "role": "FPGA System-on-Chip (SoC) Developer",
+        "domain": "Core",
+        "skills": [
+            "FPGA",
+            "SoC Design",
+            "Zynq/Cyclone V",
+            "Vivado/Quartus",
+            "Hardware/Software Co-design",
+            "Embedded systems",
+            "AXI Interconnect",
+            "HLS (High-Level Synthesis)",
+            "RTL Design",
+            "ARM Cortex-M/A integration"
+        ],
+        "companies": [
+            "Mistral Solutions",
+            "Accord Software",
+            "L&T Technology Services",
+            "Bosch",
+            "Analog Devices",
+            "NI"
+        ],
+        "salary": {
+            "avg": "₹8-11 LPA",
+            "highest": "₹12 LPA",
+            "lowest": "₹6 LPA",
+            "internship": "₹20,000/month"
+        },
+        "description": "Works on integrating programmable logic with embedded processors (like Zynq or Cyclone). Tasks include creating custom IPs, managing AXI interfaces, and basic hardware-software co-design. Bridge between pure hardware and embedded software."
     },
     {
         "role": "RF / Communication Engineer",
@@ -449,7 +513,7 @@ export const ROLES_DATA: RoleData[] = [
             "lowest": "₹9 LPA",
             "internship": "₹30,000/month"
         },
-        "description": "Designs analog circuits and mixed-signal blocks combining analog and digital functions for integrated circuits. Performs circuit simulation, layout design, and noise/power analysis. Requires deep understanding of analog electronics, SPICE simulation, and precision circuit design."
+        "description": "Designs analog circuits (Op-Amps, LDOs, Bandgaps) for integrated circuits. Performs schematic design, circuit simulation (SPICE), and layout entry. Focuses on transistor-level design, noise analysis, and matching."
     },
     {
         "role": "Mixed-Signal VLSI Engineer",

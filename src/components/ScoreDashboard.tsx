@@ -8,6 +8,7 @@ import SkillRadar from "./SkillRadar";
 import RolePredictor from "./RolePredictor";
 import ContactChecklist from "./ContactChecklist";
 import ConfidenceScore from "./ConfidenceScore";
+import InfoTooltip from "./InfoTooltip";
 
 interface ScoreDashboardProps {
     analysis: ATSResult;
@@ -36,9 +37,12 @@ export default function ScoreDashboard({ analysis, onReset }: ScoreDashboardProp
                 {/* LEFT COLUMN: Score & Core Metrics */}
                 <div className="w-full md:w-1/3 space-y-6">
                     {/* Main Score Card */}
-                    <div className="bg-card/50 backdrop-blur-md border border-border rounded-xl p-8 text-center shadow-lg relative overflow-hidden group">
-                        <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                        <h2 className="text-lg font-medium text-muted-foreground mb-4">ATS Compatibility Score</h2>
+                    <div className="bg-card/50 backdrop-blur-md border border-border rounded-xl p-8 text-center shadow-lg relative group">
+                        <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity rounded-xl" />
+                        <h2 className="text-lg font-medium text-muted-foreground mb-4">
+                            ATS Compatibility Score
+                            <InfoTooltip content="Estimates how well your resume matches ATS expectations for ECE roles. Predicts shortlisting compatibility." />
+                        </h2>
                         <div className="relative inline-flex items-center justify-center">
                             <svg className="w-40 h-40 transform -rotate-90">
                                 <circle
@@ -79,7 +83,10 @@ export default function ScoreDashboard({ analysis, onReset }: ScoreDashboardProp
                     {/* Breakdown Stats */}
                     <div className="grid grid-cols-2 gap-4">
                         <div className="bg-card/30 p-4 rounded-lg border border-border/50">
-                            <div className="text-muted-foreground text-xs uppercase mb-1">Sections</div>
+                            <div className="text-muted-foreground text-xs uppercase mb-1">
+                                Sections
+                                <InfoTooltip content="Evaluates presence of core sections like Experience, Education, and Skills." />
+                            </div>
                             <div className="text-xl font-bold">{Math.round(details.sectionScore * 0.4)}/40</div>
                         </div>
                         <div className="bg-card/30 p-4 rounded-lg border border-border/50">

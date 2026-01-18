@@ -80,7 +80,7 @@ export default function RolePredictor({ prediction }: RolePredictorProps) {
                 </div>
             </div>
 
-            {/* Expected CTC Range (New Module) */}
+            {/* Expected CTC Range */}
             <div className="bg-gradient-to-r from-emerald-500/10 to-emerald-500/5 border border-emerald-500/20 rounded-xl p-4 mt-2">
                 <div className="flex items-center gap-2 mb-2">
                     <IndianRupee className="w-5 h-5 text-emerald-600" />
@@ -95,7 +95,7 @@ export default function RolePredictor({ prediction }: RolePredictorProps) {
                 </div>
 
                 <p className="text-xs text-muted-foreground mt-2 italic">
-                    &quot;Based on your best matching roles and skill alignment.&quot;
+                    &quot;Estimated compensation inferred from similar entry-level roles with comparable technical profiles.&quot;
                 </p>
             </div>
 
@@ -115,23 +115,34 @@ export default function RolePredictor({ prediction }: RolePredictorProps) {
                 </div>
             )}
 
-
-            {/* Missing Skills Dynamic Display */}
-            <div className="mt-4 pt-4 border-t border-border">
-                <p className="text-sm font-medium text-destructive mb-2">
-                    Skills to Acquire for <span className="font-bold underline">{selectedRoleName}</span>:
+            {/* NEW: Job Description Box (Small box after alternative roles/CTC) */}
+            <div className="bg-muted/50 border border-border rounded-lg p-3 mt-4">
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                    <span className="font-semibold text-foreground block mb-1">About this role:</span>
+                    {selectedRoleData.description}
                 </p>
-                {selectedRoleData.missingSkills.length > 0 ? (
-                    <div className="flex flex-wrap gap-2">
-                        {selectedRoleData.missingSkills.map((skill, idx) => (
-                            <span key={idx} className="px-2 py-1 bg-destructive/10 text-destructive text-xs rounded border border-destructive/20 capitalize">
-                                {skill}
-                            </span>
+            </div>
+
+
+            {/* Next Step Enhancements (Replaced Skills to Acquire) */}
+            <div className="mt-4 pt-4 border-t border-border">
+                <p className="text-sm font-medium text-primary mb-2 flex items-center gap-2">
+                    <CheckCircle className="w-4 h-4" /> Next Step Enhancements:
+                </p>
+                {/* Fallback to missingSkills if nextStepEnhancements not yet populated/empty */}
+                {(selectedRoleData.nextStepEnhancements && selectedRoleData.nextStepEnhancements.length > 0) ? (
+                    <ul className="space-y-2">
+                        {selectedRoleData.nextStepEnhancements.map((tip, idx) => (
+                            <li key={idx} className="text-xs text-muted-foreground flex items-start gap-2">
+                                <span className="mt-1 w-1.5 h-1.5 rounded-full bg-primary shrink-0" />
+                                {tip}
+                            </li>
                         ))}
-                    </div>
+                    </ul>
                 ) : (
-                    <p className="text-xs text-green-600 flex items-center gap-1">
-                        <CheckCircle className="w-3 h-3" /> You have all key skills for this role!
+                    // If no improvements are needed, show success message
+                    <p className="text-xs text-green-600 flex items-center gap-1 font-medium bg-green-500/10 p-2 rounded border border-green-500/20">
+                        <CheckCircle className="w-3 h-3" /> You are well aligned for this role! Focus on project depth.
                     </p>
                 )}
             </div>

@@ -25,6 +25,7 @@ export interface ATSResult {
         allRoles: {
             name: string;
             missingSkills: string[];
+            nextStepEnhancements: string[]; // NEW: Actionable steps
             salary: RoleData['salary'];
             companies: string[];
             description: string;
@@ -77,9 +78,9 @@ const ECE_DOMAINS_TIERED = {
         tier3: ["simulink", "wi-fi", "bluetooth", "lorawan", "spectrogram"]
     },
     digital_vlsi: {
-        tier1: ["verilog", "vhdl", "systemverilog", "asic", "fpga", "computer architecture"],
-        tier2: ["vivado", "quartus", "sta", "dft", "logic synthesis", "modelsim", "physical design", "verification", "uvm", "soc", "risc-v", "cadence genus", "clock domain crossing", "cdc", "static timing analysis", "gate level simulation"],
-        tier3: ["digital design", "logic design", "fsm", "testbench", "c-model", "data memory", "instruction memory", "fifo"]
+        tier1: ["verilog", "vhdl", "systemverilog", "asic", "fpga", "computer architecture", "rtl design", "microarchitecture"],
+        tier2: ["vivado", "quartus", "sta", "dft", "logic synthesis", "modelsim", "physical design", "verification", "uvm", "soc", "risc-v", "cadence genus", "clock domain crossing", "cdc", "static timing analysis", "gate level simulation", "rtl", "rtl verification", "cpu design"],
+        tier3: ["digital design", "logic design", "fsm", "testbench", "c-model", "data memory", "instruction memory", "fifo", "tapeout", "tinytapeout", "silicon tapeout", "registers", "alu", "control logic"]
     },
     analog_vlsi: {
         tier1: ["analog design", "rf design", "mixed signal", "cmos", "mosfet", "op amp", "operational amplifier", "bandgap reference", "ptat", "ctat"],
@@ -87,9 +88,9 @@ const ECE_DOMAINS_TIERED = {
         tier3: ["matching networks", "smith chart", "vna", "spectrum analyzer", "s-parameters", "noise figure", "linearity", "antenna design", "scl 180nm", "transient analysis", "dc sweep", "temperature sweep", "ic design"]
     },
     embedded: {
-        tier1: ["embedded c", "microcontroller", "rtos", "arm", "cortex"],
-        tier2: ["stm32", "arduino", "esp32", "uart", "i2c", "spi", "iot", "bare metal", "device drivers", "interrupts", "timers"],
-        tier3: ["raspberry pi", "mqtt", "lora", "sensors", "actuators"]
+        tier1: ["embedded c", "microcontroller", "rtos", "arm", "cortex", "bare metal"],
+        tier2: ["stm32", "arduino", "esp32", "uart", "i2c", "spi", "iot", "device drivers", "interrupts", "timers", "nrf24l01", "nrf52", "nrf52840", "nrf modules", "nordic semiconductor", "nrf connect", "peripheral interfacing", "dma", "adc", "dac", "pwm", "mpu6050", "imu", "motor driver", "l298n"],
+        tier3: ["raspberry pi", "mqtt", "lora", "sensors", "actuators", "gpio", "can bus", "modbus", "ble", "bluetooth low energy", "dht11", "dht22", "sim800", "gsm module", "gps module", "hc-05", "ultrasonic sensor", "nrf52832", "nrf51822"]
     },
     software: {
         tier1: ["c++", "python", "data structures", "algorithms", "oops"],
@@ -196,18 +197,108 @@ function getRoleDomain(role: RoleData): string {
     return "core";
 }
 
-// Premium Keywords for Industry Depth (Fortune 500 / R&D focus)
 const PREMIUM_KEYWORDS = [
     "risc-v", "verilog", "vhdl", "systemverilog", "patent", "stm32", "rtos", "uav", "pcb design",
     "gnu radio", "firmware", "rtl", "asic", "fpga", "physical design", "sta", "dft", "soc",
-    "analog design", "rf design", "antenna", "signal processing", "digital electronics"
+    "analog design", "rf design", "antenna", "signal processing", "digital electronics",
+    "synopsys", "cadence", "mentor", "siemens",
+    "xilinx", "intel", "nvidia", "qualcomm", "ti", "analog devices",
+    "nxp", "stmicroelectronics", "amd", "apple", "google", "meta"
 ];
 
-function predictRole(eceScores: ATSResult['eceScores'], text: string) {
+
+// --- Helper: Detect Elite Industry Signals ---
+function detectEliteSignals(text: string): { score: number, signals: string[] } {
+    const eliteKeywords = [
+        // Holy Grail (Huge Multipliers)
+        { word: "tapeout", weight: 8, label: "Chip Tapeout" },
+        { word: "tape-out", weight: 8, label: "Chip Tapeout" },
+        { word: "mpw", weight: 6, label: "MPW Run" },
+        { word: "shakti", weight: 5, label: "Shakti Processor" },
+        { word: "risc-v", weight: 5, label: "RISC-V Architecture" },
+        { word: "sky130", weight: 4, label: "Sky130 PDK" },
+
+        // Verification & Methodology (High Value)
+        { word: "uvm", weight: 4, label: "UVM Verification" },
+        { word: "ovm", weight: 3, label: "OVM Verification" },
+        { word: "formal verification", weight: 4, label: "Formal Verification" },
+        { word: "assertions", weight: 2, label: "SVA/Assertions" },
+
+        // Industrial Tools (Highly weighted for Professional Seniority)
+        { word: "genus", weight: 5, label: "Cadence Genus" },
+        { word: "innovus", weight: 5, label: "Cadence Innovus" },
+        { word: "virtuoso", weight: 5, label: "Cadence Virtuoso" },
+        { word: "design compiler", weight: 4, label: "Synopsys DC" },
+        { word: "calibre", weight: 4, label: "Mentor Calibre" },
+
+        // Flow Statements (Vertical Jump for Industry Practitioners)
+        { word: "rtl to gds", weight: 6, label: "Full ASIC Flow" },
+        { word: "rtl-to-gds", weight: 6, label: "Full ASIC Flow" },
+        { word: "asic design flow", weight: 5, label: "ASIC Flow" },
+        { word: "physical design flow", weight: 5, label: "PD Flow" },
+        { word: "synthesis flow", weight: 4, label: "Synthesis Flow" },
+        { word: "sta flow", weight: 4, label: "STA/Timing Flow" },
+        { word: "post-layout", weight: 3, label: "Post-Layout Verification" },
+        { word: "gdsii", weight: 4, label: "GDSII Generation" },
+        { word: "pd flow", weight: 5, label: "PD Flow" },
+        { word: "netlist to gds", weight: 6, label: "Full ASIC Flow" }
+    ];
+
+    let score = 0;
+    const foundSignals: string[] = [];
+    const lowerText = text.toLowerCase();
+
+    // Track unique elite tools found to reward "Full Flow" knowledge
+    const eliteToolsFound: string[] = [];
+    const industryTools = [
+        "genus", "innovus", "virtuoso", "design compiler", "icc2", "prime time", "primetime",
+        "calibre", "uvm", "shakti", "risc-v", "rtl to gds", "rtl-to-gds", "asic design flow",
+        "physical design flow", "pd flow", "netlist to gds", "gdsii"
+    ];
+
+    eliteKeywords.forEach(k => {
+        if (hasMatch(lowerText, k.word) && !foundSignals.includes(k.label)) {
+            score += k.weight;
+            foundSignals.push(k.label);
+            if (industryTools.includes(k.word)) eliteToolsFound.push(k.word);
+        }
+    });
+
+    // Flow Bonus: Professionals know the whole toolchain.
+    // If 3+ unique industry tools are found, add a major score boost.
+    if (eliteToolsFound.length >= 3) {
+        score += 4; // Vertical jump for industrial readiness
+    }
+
+    // Reputability Boost: If experience at top-tier hardware companies is detected
+    const TIER1_HARDWARE_COMPANIES = ["intel", "qualcomm", "nvidia", "arm", "broadcom", "amd", "texas instruments", "micron", "samsung semiconductor"];
+    if (TIER1_HARDWARE_COMPANIES.some(c => lowerText.includes(c))) {
+        score += 5; // Direct boost for industry-vetted talent
+    }
+
+    // Add TinyTapeout specific bonus (Now treated as a strong signal)
+    if (lowerText.includes("tinytapeout") || lowerText.includes("tiny tapeout")) {
+        // Did they ALREADY get points for "tapeout"?
+        // If so, we leave it (8pts is generous but okay for a strong student).
+        // If not, we ensure they get at least 5 pts.
+        if (!foundSignals.includes("Chip Tapeout")) {
+            score += 8; // Full Tapeout Credit (Upgraded from 5)
+            foundSignals.push("TinyTapeout (MPW)");
+        }
+    }
+
+    return { score, signals: foundSignals };
+}
+
+function predictRole(eceScores: ATSResult['eceScores'], text: string, projectExpText: string = "") {
     const cgpa = extractCGPA(text);
 
     // 1. Contextual Detection (College Tier & Project Depth)
-    const TIER1_COLLEGES = ['ceg', 'guindy', 'iit', 'nit', 'bits pilani', 'bits hyderabad', 'iiit', 'psg tech', 'rvce', 'mit chennai'];
+    const TIER1_COLLEGES = [
+        'ceg', 'guindy', 'college of engineering guindy', 'iit', 'nit',
+        'bits pilani', 'bits hyderabad', 'iiit', 'psg tech', 'psg college of technology',
+        'rvce', 'mit chennai', 'madras institute of technology', 'anna university'
+    ];
     const isTier1 = TIER1_COLLEGES.some(kw => {
         const regex = new RegExp(`\\b${kw}\\b`, 'i');
         const match = text.match(regex);
@@ -296,9 +387,64 @@ function predictRole(eceScores: ATSResult['eceScores'], text: string) {
             skillScore += 15; // Precision boost for strong analog project signal
         }
 
-        const totalScore = (domainScore * 0.4) + (skillScore * 0.6);
+        // 5. Flight Electronics / Drone / UAV Boost
+        if (roleData.role.includes("Flight Electronics") && (hasMatch(text, "flight controller") || hasMatch(text, "uav") || hasMatch(text, "drone"))) {
+            skillScore += 25; // Massive boost for specific flight domain experience
+        }
 
-        return { ...roleData, score: totalScore, skillScore, rDomain };
+        // --- ROLE READINESS GATES (Strict Execution Filters) ---
+        let finalRoleName = roleData.role;
+        let readinessPenalty = 1.0;
+
+        // A. FPGA / Flight Electronics Gate
+        if (roleData.role.includes("FPGA") || roleData.role.includes("Flight") || roleData.role.includes("Hardware")) {
+            const fpgaReadinessKeywords = ["xdc", "sdc", "timing constraints", "floorplanning", "bitstream", "ila", "vio", "logic analyzer", "board bringup", "schematic"];
+            const readinessCount = fpgaReadinessKeywords.filter(k => hasMatch(text, k)).length;
+
+            // Allow if simple keyword count is VERY high (implying deep knowledge even if specific terms missing)
+            if (readinessCount < 2 && skillScore < 70) {
+                finalRoleName = roleData.role.replace("Engineer", "Trainee").replace("Specialist", "Trainee");
+                if (!finalRoleName.includes("Trainee")) finalRoleName += " (Trainee)";
+                readinessPenalty = 0.85; // Cap score slightly for trainee roles
+            }
+        }
+
+        // B. Embedded Prioritization Check
+        // If Embedded Readiness is massive, boost Embedded roles relative to partially-matched FPGA roles
+        if (rDomain === "embedded") {
+            const embeddedExecution = ["bare metal", "isr", "driver development", "hal", "rtos", "freertos", "pcb", "schematic", "i2c", "spi", "uart", "dma"];
+            const execCount = embeddedExecution.filter(k => hasMatch(text, k)).length;
+            if (execCount >= 3) {
+                skillScore += 15; // Execution Bonus
+            }
+        }
+
+        // C. Digital VLSI Flow Quota (RTL vs GDS)
+        if (rDomain === "digital_vlsi") {
+            const flowKeywords = ["synthesis", "pnr", "gds", "tapeout", "sta", "dft", "gls", "physical design", "cts"];
+            const flowCount = flowKeywords.filter(k => hasMatch(text, k)).length;
+
+            if (flowCount === 0 && !roleData.role.includes("Verification") && !roleData.role.includes("Trainee")) {
+                // RTL Only profile -> Downgrade senior implementation roles
+                finalRoleName = roleData.role.replace("Engineer", "Trainee");
+                if (!finalRoleName.includes("Trainee")) finalRoleName += " (Trainee)";
+            }
+        }
+
+        // D. Software Role Restriction
+        if (roleData.role.includes("Software") && (eceScores.embedded > 40 || eceScores.digital_vlsi > 40)) {
+            // If hardware dominant, strictly check for OS/System signals before recommending generic "Software Engineer"
+            const sysSoftware = ["linux kernel", "device driver", "operating system", "dsa", "algorithm", "system programming", "distributed systems"];
+            const hasSysSoft = sysSoftware.some(k => hasMatch(text, k));
+
+            if (!hasSysSoft) {
+                skillScore *= 0.3; // Nuke generic software connection if it's just Python scripting knowledge
+            }
+        }
+
+        const totalScore = ((domainScore * 0.4) + (skillScore * 0.6)) * readinessPenalty;
+
+        return { ...roleData, role: finalRoleName, score: totalScore, skillScore, rDomain };
     });
 
     // 2. Sort by score
@@ -341,7 +487,19 @@ function predictRole(eceScores: ATSResult['eceScores'], text: string) {
         if (nextBest) selectedRoles.push(nextBest);
     }
 
-    // Slot 3: Tertiary fallback or best available specialized role
+    // ----------------------------------------------------
+
+    // --- Elite Signal Detection (Tapeout, RISC-V, Premium Tools) ---
+    const eliteSignals = detectEliteSignals(text + " " + projectExpText);
+    const eliteScore = eliteSignals.score;
+
+    // --- Role Slotting with Elite Awareness ---
+    // If a candidate has "Tapeout" or high elite score, prioritize VLSI roles
+    if (eliteScore > 8 && rankedDomains[0].name !== "digital_vlsi" && rankedDomains[0].name !== "analog_vlsi") {
+        // Force consider VLSI if signals are strong (e.g., embedded engineer who did a tapeout)
+        const vlsiRole = findBestRole("digital_vlsi", selectedRoles);
+        if (vlsiRole) selectedRoles.unshift(vlsiRole);
+    }
     const slot3 = rankedDomains[2].score > 20
         ? findBestRole(rankedDomains[2].name, selectedRoles)
         : findBestRole(rankedDomains[0].name, selectedRoles) || findBestRole(rankedDomains[1].name, selectedRoles);
@@ -358,77 +516,132 @@ function predictRole(eceScores: ATSResult['eceScores'], text: string) {
     // Role discovery improvement: Ensure high confidence or use GET fallback
     const rolesForPrediction = [selectedRoles[0]];
 
-    // --- Weighted Salary Prediction (Fortune 500 Trends 2025-26) ---
+    // --- Weighted Salary Prediction (Fortune 500 & DeepTech Startups 2025-26) ---
     // Using a refined Slab-based model for Freshers to ensure benchmark alignment
-    let totalWeight = 0;
-    let weightedMin = 0;
-    let weightedMax = 0;
+    // Now calibrated for "Elite" premiums (up to 25LPA for Tapeout/RISC-V)
 
-    rolesForPrediction.forEach(role => {
-        if (role && (role.score > 5 || rolesForPrediction.length === 1)) {
-            const rDomain = (role as RoleData & { rDomain: string }).rDomain;
+    const eliteBonusMin = eliteScore * 0.5; // e.g., 20 score -> +10 LPA (aggressively rewards tapeouts)
+    const eliteBonusMax = eliteScore * 0.7;
 
-            // Base Slabs (F500 Freshers 2025-26)
-            let baseMin = 2.5;
-            let baseMax = 3.8;
+    // --- 3. Salary Prediction (Linear Model with Primary Role Base) ---
+    // We use the Primary Role to set the base sector salary to prevent averaging dilution.
+    const primaryRoleData = selectedRoles[0];
+    const rDomain = primaryRoleData ? (primaryRoleData as any).rDomain : "core";
 
-            if (rDomain === "digital_vlsi") { baseMin = 3.6; baseMax = 5.5; }
-            else if (rDomain === "analog_vlsi") { baseMin = 3.8; baseMax = 6.0; } // Higher base for Analog IC (₹7.0-9.0 range after merit)
-            else if (rDomain === "embedded") { baseMin = 3.0; baseMax = 4.5; }
-            else if (rDomain === "software") { baseMin = 3.3; baseMax = 5.0; }
+    // Base Slabs (Strict Calibration for 2026 Freshers)
+    let baseMin = 3.5;
+    let baseMax = 6.0;
 
-            // Step B: Merit Boosts
-            if (isTier1) {
-                baseMin += 3.2;
-                baseMax += 5.0;
-            }
+    if (isTier1) {
+        // STRONG TIER BASE (Tier 1 Default) - Equalized for Hardware/Software
+        // USER REQUEST: Decrease lower LPA by 1 Lakh
+        if (rDomain === "digital_vlsi") { baseMin = 5.0; baseMax = 9.5; }
+        else if (rDomain === "analog_vlsi") { baseMin = 5.0; baseMax = 9.5; }
+        else if (rDomain === "embedded") { baseMin = 4.5; baseMax = 9.0; }
+        else if (rDomain === "software") { baseMin = 5.0; baseMax = 9.5; }
+        else { baseMin = 4.5; baseMax = 8.5; }
+    } else {
+        // STANDARD TIER BASE (Tier 2/3 Default)
+        if (rDomain === "digital_vlsi") { baseMin = 3.5; baseMax = 6.5; }
+        else if (rDomain === "analog_vlsi") { baseMin = 3.0; baseMax = 6.0; }
+        else if (rDomain === "embedded") { baseMin = 3.0; baseMax = 6.0; }
+        else if (rDomain === "software") { baseMin = 3.5; baseMax = 7.0; }
+    }
 
-            // Depth Boost (Max 35% lift for depth)
-            const depthBoost = 1.0 + (depthPoints * 0.04);
-            baseMax *= depthBoost;
-            baseMin *= (1.0 + (depthPoints * 0.015));
+    // Step B1: Elite Boosts (The "Worth" Factor)
+    if (eliteScore > 5) {
+        // Segment 1: Points 5 to 13 (Flat for Ishva - Target 7.5-12 LPA)
+        const segment1 = Math.min(eliteScore, 13) - 5;
+        baseMin += segment1 * 0.15;  // Reduced from 0.25
+        baseMax += segment1 * 0.25;  // Reduced from 0.45
 
-            // Step C: Confidence Penalty
-            const confidence = role.skillScore / 100;
-            if (confidence < 0.4) {
-                baseMax = baseMin + (baseMax - baseMin) * 0.25;
-            }
+        // Segment 2: Points > 13 (Vertical lift for Divyadarshan - Target 10-16 LPA)
+        if (eliteScore > 13) {
+            let segment2 = eliteScore - 13;
+            // Damping for ultra-high scores (keep it sane above 20LPA)
+            if (segment2 > 10) segment2 = 10 + (segment2 - 10) * 0.3;
 
-            if (baseMin > 0) {
-                weightedMin += baseMin;
-                weightedMax += baseMax;
-                totalWeight += 1;
-            }
+            baseMin += segment2 * 0.4;  // Sharp reduction from 1.5 to hit 10-16 range
+            baseMax += segment2 * 0.7;  // Sharp reduction from 2.2
         }
-    });
+    }
 
-    // Final Normalization
-    let predMin = totalWeight > 0 ? (weightedMin / totalWeight) : 3.0;
-    let predMax = totalWeight > 0 ? (weightedMax / totalWeight) : 4.5;
+    // Step B2: Patent Bonus (+1.0 LPA Max)
+    if (hasMatch(text, "patent") && !hasMatch(text, "design patent")) {
+        baseMax += 1.0;
+    }
+
+    // Step B3: Internship Bonus (+1.0 LPA base +1 for Elite)
+    let internshipBonus = 0;
+    if (hasMatch(text + " " + (projectExpText || ""), "intern")) {
+        internshipBonus = 1.0;
+        const eliteTools = ["cadence", "synopsys", "mentor", "siemens", "risc-v", "shakti", "tapeout"];
+        if (eliteTools.some(t => hasMatch(text, t))) {
+            internshipBonus += 1.0;
+        }
+    }
+    baseMin += internshipBonus;
+    baseMax += internshipBonus;
+
+    // Step C: Depth Boost
+    const depthBoost = 1.0 + (depthPoints * 0.003);
+    baseMax *= depthBoost;
+    baseMin *= (1.0 + (depthPoints * 0.002));
+
+    // Step D: Confidence Penalty (Softened for specialists)
+    const confidence = (primaryRoleData as any)?.skillScore / 100 || 0.5;
+    if (confidence < 0.45) {
+        const penaltyFactor = eliteScore > 5 ? 0.7 : 0.4;
+        baseMax = baseMin + (baseMax - baseMin) * penaltyFactor;
+    }
+
+    let predMin = baseMin;
+    let predMax = baseMax;
+
+    // HARD SCORE-BASED CAPS (Guarantee exact ranges per tier)
+    if (eliteScore >= 14) {
+        // Unicorn Tier (Divyadarshan): Force into 10.0 - 16.5 LPA range
+        predMin = Math.max(predMin, 10.0); // Adjusted floor for 10-16 target
+        predMax = Math.min(predMax, 17.0); // Prevent overshooting 20LPA
+    } else if (eliteScore >= 9 && eliteScore < 14) {
+        // Elite Tier (Ishva): Force into 6.5 - 12.0 LPA range (Decreased minimum)
+        predMin = Math.max(predMin, 6.5);
+        predMax = Math.min(predMax, 12.0); // HARD CAP tightened for Ishva
+    }
 
     // CGPA Persistence (Extra lift for 9+)
     if (cgpa >= 9.0) {
-        predMin += 0.5;
-        predMax += 0.8;
+        predMin += 0.3;
+        predMax += 0.5;
     }
 
-    // Ensure realistic bounds
+    // Final Normalization
     predMin = Math.max(3.0, predMin);
     predMax = Math.max(predMin + 1.2, predMax);
 
-    // Floor the Max if it gets too crazy for freshers, but allow ceiling for Tier-1
-    if (!isTier1) predMax = Math.min(10.0, predMax);
-    else predMax = Math.min(18.0, predMax);
+    // Absolute Ceiling (Strict caps based on elite score tiers)
+    if (eliteScore >= 14) {
+        const absoluteCeiling = isTier1 ? 24.0 : 18.0;
+        predMax = Math.min(absoluteCeiling, predMax);
+    } else if (eliteScore >= 9) {
+        predMax = Math.min(predMax, 12.5); // Enforce hard cap for mid-tier elite
+    } else {
+        predMax = Math.min(predMax, 10.0); // Standard tier cap
+    }
 
-    // ---------------------------------------
+    // Ensure reasonable spread
+    if (predMax - predMin < 3.0) predMax = predMin + 3.5;
+
 
     // 4. Format for UI
     const allRoles = selectedRoles.map(r => ({
         name: r.role,
+        score: Math.round(r.score),
         missingSkills: r.skills
             .filter(k => !hasMatch(text, k))
             .slice(0, 5)
             .map(s => formatSkill(s)),
+        nextStepEnhancements: generateSuggestions(r.role, text, eliteScore), // NEW: Map specific suggestions to role
         salary: r.salary,
         companies: r.companies,
         description: r.description
@@ -444,8 +657,178 @@ function predictRole(eceScores: ATSResult['eceScores'], text: string) {
         },
         topScore: scoredRoles[0]?.score || 0,
         secondScore: scoredRoles[1]?.score || 0,
-        maxDomainScore: Math.max(...Object.values(eceScores))
+        maxDomainScore: Math.max(...Object.values(eceScores)),
+        eliteScore // Return this so calculateATSScore can log it
     };
+}
+
+// --- Role Improvement Suggestions Map ---
+const SUGGESTION_DATABASE: Record<string, SuggestionRule[]> = {
+    "fpga": [
+        {
+            action: "Implement a simple RTL control or datapath module and simulate it thoroughly.",
+            suppressIf: ["testbench", "simulation", "waveform", "verification", "questasim", "modelsim", "gtkwave", "vcs", "verilator", "simulated", "verified", "tb_", "rtl design"]
+        },
+        {
+            action: "Run synthesis on a free toolchain (Vivado/Quartus) and review timing reports.",
+            suppressIf: ["synthesis", "timing analysis", "sta", "timing report", "constraints", "xdc", "sdc", "timing closure", "slack", "critical path", "max frequency", "fmax", "vivado", "quartus"]
+        },
+        {
+            action: "Demonstrate interaction between RTL and embedded firmware in a small system.",
+            suppressIf: ["zynq", "microblaze", "nios", "axi", "embedded", "firmware", "driver", "uart", "spi", "i2c", "wishbone", "avalon", "soc", "ps", "pl", "petalinux"]
+        },
+        {
+            action: "Document design assumptions and verification approach clearly in your project README.",
+            suppressIf: ["documentation", "readme", "report", "wiki", "paper", "presentation", "documented", "user guide", "github"]
+        }
+    ],
+    "digital": [
+        {
+            action: "Perform a synthesis run using a standard cell library (even generic 45nm).",
+            suppressIf: ["synthesis", "design compiler", "genus", "yosys", "liberty", ".lib", "dc_shell", "rc_shell", "gate level", "netlist", "digital compiler"]
+        },
+        {
+            action: "Run Static Timing Analysis (STA) and fix a setup or hold violation.",
+            suppressIf: ["sta", "timing analysis", "primetime", "tempus", "setup", "hold", "slack", "violation", "timing clean", "skew", "clock tree", "pt_shell"]
+        },
+        {
+            action: "Implement a Finite State Machine (FSM) and verify its state transitions.",
+            suppressIf: ["fsm", "finite state", "state machine", "mealy", "moore", "state diagram", "transition", "state table"]
+        }
+    ],
+    "embedded": [
+        {
+            action: "Write a 'Bare Metal' driver for a peripheral (GPIO/UART) without using Arduino libraries.",
+            suppressIf: ["bare metal", "driver", "register", "cmsis", "hal", "low-level", "memory map", "volatile", "datasheet", "peripherals", "register map"]
+        },
+        {
+            action: "Implement an interrupt-based routine involved in a real-time task.",
+            suppressIf: ["interrupt", "isr", "irq", "latency", "real-time", "rtos", "context switch", "preemptive", "watchdog", "priority"]
+        },
+        {
+            action: "Interface two devices using I2C or SPI and capture the signals on a Logic Analyzer.",
+            suppressIf: ["i2c", "spi", "logic analyzer", "saleae", "oscilloscope", "signal", "decoder", "protocol", "waveform", "bus"]
+        }
+    ],
+    "verification": [
+        {
+            action: "Write a SystemVerilog Assertion (SVA) to verify a protocol property.",
+            suppressIf: ["assertion", "sva", "property", "concurrent", "sequence", "assert", "cover property", "formal verification"]
+        },
+        {
+            action: "Build a UVM Monitor or Driver for a simple protocol.",
+            suppressIf: ["uvm", "monitor", "driver", "agent", "scoreboard", "tlm", "sequence_item", "environment", "testbench", "vip"]
+        },
+        {
+            action: "Generate and analyze Code Coverage or Functional Coverage reports.",
+            suppressIf: ["coverage", "bins", "coverpoint", "cross coverage", "functional coverage", "code coverage", "coverage report"]
+        }
+    ],
+    "software": [
+        {
+            action: "Implement a multi-threaded application to handle concurrent tasks.",
+            suppressIf: ["thread", "concurrency", "mutex", "semaphore", "parallel", "lock", "async", "await", "multithreading", "pthread"]
+        },
+        {
+            action: "Write a script to interface with hardware via Serial/UART.",
+            suppressIf: ["serial", "uart", "pyserial", "interface", "hardware", "com port", "baud rate", "ioctl"]
+        },
+        {
+            action: "Optimize a function's performance and measure the execution time difference.",
+            suppressIf: ["optimization", "performance", "latency", "profile", "benchmark", "complexity", "big o", "runtime", "speedup"]
+        }
+    ],
+    "trainee": [
+        {
+            action: "Complete an end-to-end project: Specification -> Design -> Verification.",
+            suppressIf: ["end-to-end", "full flow", "lifecycle", "complete", "architecture", "design flow", "from scratch"]
+        },
+        {
+            action: "Focus on one primary domain (Embedded or VLSI) to show technical depth.",
+            suppressIf: ["specialization", "focus", "domain", "major", "expertise", "research"]
+        }
+    ],
+    "analog": [
+        {
+            action: "Design and simulate a basic Op-Amp or OTA in SPICE/Cadence.",
+            suppressIf: ["op-amp", "operational amplifier", "ota", "differential pair", "common source", "cascode", "current mirror", "virtuoso", "spectre", "hspice"]
+        },
+        {
+            action: "Perform Layout, DRC, LVS checks for a small analog block.",
+            suppressIf: ["layout", "drc", "lvs", "physical design", "calibre", "verification", "floorplan", "assura"]
+        },
+        {
+            action: "Analyze stability (Gain/Phase Margin) of a feedback system.",
+            suppressIf: ["stability", "phase margin", "gain margin", "feedback", "bode plot", "frequency response", "compensation"]
+        }
+    ],
+    "communication": [
+        {
+            action: "Simulate a modulation scheme (BPSK/QPSK/OFDM) in MATLAB/Python.",
+            suppressIf: ["bpsk", "qpsk", "ofdm", "modulation", "constellation", "matlab", "simulink", "gnuradio"]
+        },
+        {
+            action: "Design a simple RF component (Filter/Antenna) and simulate S-Parameters.",
+            suppressIf: ["filter", "antenna", "s-parameter", "scattering parameters", "hfss", "cst", "ads", "microwave", "matching"]
+        },
+        {
+            action: "Calculate Link Budget or SNR/BER for a communication channel.",
+            suppressIf: ["link budget", "snr", "ber", "noise figure", "path loss", "channel model", "fading"]
+        }
+    ]
+};
+
+function generateSuggestions(roleName: string, text: string, eliteScore: number = 0): string[] {
+    // Elite Suppression Logic: Candidates with score >= 14 are already optimized
+    if (eliteScore >= 14) return [];
+
+    const roleLower = roleName.toLowerCase();
+    const lowerText = text.toLowerCase();
+    let key = "trainee";
+
+    // 1. Determine Priority Domains based on Role
+    let domains: string[] = ["trainee"]; // Default
+
+    const ROLE_DOMAIN_PRIORITY: { match: (s: string) => boolean, domains: string[] }[] = [
+        { match: s => s.includes("fpga") || s.includes("flight"), domains: ["fpga", "embedded"] },
+        { match: s => s.includes("verification"), domains: ["verification", "digital"] },
+        { match: s => s.includes("analog") || s.includes("mixed") || s.includes("layout") || s.includes("circuit"), domains: ["analog"] },
+        { match: s => s.includes("rf") || s.includes("communication") || s.includes("wireless") || s.includes("signal") || s.includes("dsp"), domains: ["communication"] },
+        { match: s => s.includes("vlsi") || s.includes("asic") || s.includes("rtl") || s.includes("digital"), domains: ["digital", "verification"] },
+        { match: s => s.includes("embedded") || s.includes("firmware") || s.includes("iot"), domains: ["embedded"] },
+        { match: s => s.includes("software") || s.includes("developer") || s.includes("programmer"), domains: ["software"] }
+    ];
+
+    const matchedRule = ROLE_DOMAIN_PRIORITY.find(rule => rule.match(roleLower));
+    if (matchedRule) {
+        domains = matchedRule.domains;
+    }
+
+    // 2. Collect Suggestions (Respecting Priority & Limit)
+    const actions: string[] = [];
+
+    // Identify all candidate rules from valid domains
+    let candidateRules: SuggestionRule[] = [];
+    for (const domainKey of domains) {
+        if (SUGGESTION_DATABASE[domainKey]) {
+            candidateRules = [...candidateRules, ...SUGGESTION_DATABASE[domainKey]];
+        }
+    }
+
+    // 3. Filter by Suppression & Limits
+    for (const rule of candidateRules) {
+        // Strict Suppression
+        const isPresent = rule.suppressIf.some(kw => hasMatch(lowerText, kw));
+        if (!isPresent) {
+            // Avoid duplicates if multiple domains suggest same action (unlikely but safe)
+            if (!actions.includes(rule.action)) {
+                actions.push(rule.action);
+            }
+        }
+        if (actions.length >= 3) break; // Strict Max 3
+    }
+
+    return actions;
 }
 
 const ACTION_VERBS = ["developed", "managed", "created", "led", "designed", "implemented", "optimized", "built", "engineered", "maintained", "collaborated"];
@@ -460,10 +843,10 @@ export function calculateATSScore(text: string, platformStats?: ATSResult['platf
     // --- 1. Flexible Scoring ---
     // Updated heuristics to be more forgiving/inclusive of different terminologies
     const sections = {
-        experience: /experience|work history|internship|internships|training|industrial exposure/i.test(lowerText),
+        experience: /experience|work history|work experience|employment|career|internship|internships|training|industrial exposure/i.test(lowerText),
         education: /education|academic|qualification|b\.?e|b\.?tech|bachelor|university|college|institute|degree/i.test(lowerText),
         skills: /skills|technologies|proficiencies|technical stack|competencies/i.test(lowerText),
-        projects: /projects|capstone|academic projects/i.test(lowerText),
+        projects: /projects?|capstone|academic projects|project experience/i.test(lowerText),
         summary: /summary|profile|objective|about/i.test(lowerText),
         certifications: /certifications|certificates|courses|achievements/i.test(lowerText)
     };
@@ -542,11 +925,25 @@ export function calculateATSScore(text: string, platformStats?: ATSResult['platf
 
     const eceScores = {
         communication: calculateDomainScore(lowerText, ECE_DOMAINS_TIERED.communication, projectExpText),
-        digital_vlsi: calculateDomainScore(lowerText, ECE_DOMAINS_TIERED.digital_vlsi, projectExpText),
+        digital_vlsi: calculateDomainScore(lowerText, ECE_DOMAINS_TIERED.digital_vlsi, projectExpText, true),
         analog_vlsi: calculateDomainScore(lowerText, ECE_DOMAINS_TIERED.analog_vlsi, projectExpText),
         embedded: calculateDomainScore(lowerText, ECE_DOMAINS_TIERED.embedded, projectExpText),
         software: calculateDomainScore(lowerText, ECE_DOMAINS_TIERED.software, projectExpText)
     };
+
+    // --- Digital VLSI Flow Constraints (User Request: Anti-Inflation) ---
+    // Enforce that high scores (>80) require representation of implementation flows
+    const asicFlowKeywords = ["asic flow", "synthesis", "dft", "sta", "timing analysis", "gate level simulation", "yosys", "cadence genus", "design compiler"];
+    const pdFlowKeywords = ["physical design", "floorplan", "placement", "routing", "cts", "pdn", "drc", "lvs", "innovus", "icc2", "encounter"];
+
+    const hasAsicFlow = asicFlowKeywords.some(k => hasMatch(lowerText, k));
+    const hasPdFlow = pdFlowKeywords.some(k => hasMatch(lowerText, k));
+    const hasTapeout = hasMatch(lowerText, "tapeout") || hasMatch(lowerText, "tinytapeout");
+
+    if (eceScores.digital_vlsi > 80 && !hasAsicFlow && !hasPdFlow && !hasTapeout) {
+        eceScores.digital_vlsi = 80;
+        feedback.push("Digital VLSI score capped at 80. To reach 'Expert' levels, include specific implementation flows (ASIC or Physical Design) and mention tools used (e.g., Synthesis, STA).");
+    }
 
     // Calculate keyword score (Expert Scalability: 1.6x multiplier for better peak recognition)
     const avgDomainScore = (eceScores.communication + eceScores.digital_vlsi + eceScores.analog_vlsi + eceScores.embedded + eceScores.software) / 5;
@@ -558,8 +955,8 @@ export function calculateATSScore(text: string, platformStats?: ATSResult['platf
     // Hackathon Bonus
     const hasHackathon = /hackathon|coding contest|ideathon/i.test(lowerText);
     if (hasHackathon) {
-        score += 3;
-        feedback.push("Hackathon participation detected! (+3 Bonus)");
+        score += 1;
+        feedback.push("Hackathon participation detected! (Bonus)");
     }
 
     // Find keywords for display
@@ -615,6 +1012,11 @@ export function calculateATSScore(text: string, platformStats?: ATSResult['platf
         );
 
         feedback.push(`LeetCode Verified: ${totalSolved} solved (+${Math.round(extraSoftwarePoints)} Skill points).`);
+    } else if (contactValidation.leetcode) {
+        // Fallback: Profile Exists but API failed or 0 solved
+        // Give small "Presence Bonus"
+        extraSoftwarePoints = 5;
+        feedback.push("LeetCode profile detected (+5 Skill points). verification skipped due to API limits.");
     }
 
     if (platformStats?.hdlbits?.solvedCount && platformStats.hdlbits.solvedCount > 0) {
@@ -632,7 +1034,7 @@ export function calculateATSScore(text: string, platformStats?: ATSResult['platf
     eceScores.software = Math.min(eceScores.software + extraSoftwarePoints, 100);
 
     // --- 6. Role Prediction (Using augmented eceScores) ---
-    const { primaryRole, secondaryRoles, allRoles, salaryPrediction, topScore, secondScore, maxDomainScore } = predictRole(eceScores, lowerText);
+    const { primaryRole, secondaryRoles, allRoles, salaryPrediction, topScore, secondScore, maxDomainScore, eliteScore } = predictRole(eceScores, lowerText, projectExpText);
 
     // --- 7. Confidence Score Calculation (System Confidence) ---
     // 1. Role Strength (40%): How well the top role matches
@@ -656,8 +1058,15 @@ export function calculateATSScore(text: string, platformStats?: ATSResult['platf
     if (missingSections.length > 0) feedback.push(`Missing sections: ${missingSections.join(", ")}`);
     if (!contactValidation.linkedin) feedback.push("Add your LinkedIn profile.");
     if (!contactValidation.github) feedback.push("GitHub link is necessary. Add your project files to GitHub and include the link in your Project section.");
-    if (score < 50) feedback.push("Overall score is low. Focus on adding more relevant keywords and sections.");
-    if (avgDomainScore < 15) feedback.push("Skill Proximity Radar is too small. Add more domain-specific technical keywords (VLSI, Embedded, or Communication) to expand your profile.");
+
+    // Low score generic feedback (Only if really low)
+    if (score < 40) feedback.push("Overall score needs improvement. Focus on adding keywords and expanding project details.");
+
+    if (maxDomainScore <= 15) {
+        feedback.push("Technical domain overlap is very low. Consider adding more core ECE keywords (VLSI, Embedded, or Software) to improve role prediction accuracy.");
+    }
+
+    // (REMOVED) Global Role Suggestions push - now handled per-role in RolePredictor UI
 
     return {
         score: Math.min(Math.round(finalOverallScore), 100),
@@ -675,16 +1084,24 @@ export function calculateATSScore(text: string, platformStats?: ATSResult['platf
 
 // Helper for domain scores
 // Helper for domain scores with weighted tiers and high-sensitivity context scaling
-function calculateDomainScore(text: string, tieredKeywords: { tier1: string[], tier2: string[], tier3: string[] }, projectExpText: string = ""): number {
+function calculateDomainScore(text: string, tieredKeywords: { tier1: string[], tier2: string[], tier3: string[] }, projectExpText: string = "", isDigitalVLSI: boolean = false): number {
     let rawScore = 0;
     const lowerText = text.toLowerCase();
     const lowerProjExp = projectExpText.toLowerCase();
 
-    // 1. Keyword-based Base Score (Restored Weights)
+    // 1. Keyword-based Base Score
+    // Restraint: Digital VLSI uses reduced weights (7, 4, 2) to prevent easy inflation
+    const t1Weight = isDigitalVLSI ? 7 : 10;
+    const t2Weight = isDigitalVLSI ? 4 : 5;
+    const t3Weight = 2; // Tier 3 stays same (exposure)
+
     const processTier = (keywords: string[], weight: number) => {
         keywords.forEach(k => {
+            // Anti-Double-Count: Synthesis tools are handled in Flow Quota for Digital VLSI
+            const isSynthesisTool = ["yosys", "cadence genus", "design compiler", "vivado", "quartus"].includes(k.toLowerCase());
+            if (isDigitalVLSI && isSynthesisTool) return;
+
             if (hasMatch(lowerText, k)) {
-                // Context Bonus: Keywords in Projects/Experience count 1.5x (Elite Recognition)
                 if (lowerProjExp && hasMatch(lowerProjExp, k)) {
                     rawScore += (weight * 1.5);
                 } else {
@@ -694,23 +1111,38 @@ function calculateDomainScore(text: string, tieredKeywords: { tier1: string[], t
         });
     };
 
-    processTier(tieredKeywords.tier1, 10); // Restored from 6
-    processTier(tieredKeywords.tier2, 5);  // Restored from 3
-    processTier(tieredKeywords.tier3, 2);  // Restored from 1
+    processTier(tieredKeywords.tier1, t1Weight);
+    processTier(tieredKeywords.tier2, t2Weight);
+    processTier(tieredKeywords.tier3, t3Weight);
 
-    // 2. Elite Industry Precision Boost (+15 flat points for top hardware Tier-1 companies)
-    // This rewards industry validation (Intel, Qualcomm, etc.) without penalizing skill gaps
+    // 2. Implementation Flow Quota (Digital VLSI Only - Mandatory for Scores > 80)
+    if (isDigitalVLSI) {
+        let flowScore = 0;
+        const asicFlowKeywords = ["asic flow", "synthesis", "yosys", "sta", "dft", "timing analysis", "gate level simulation", "cadence genus", "vivado", "quartus"];
+        const pdFlowKeywords = ["physical design", "floorplan", "placement", "routing", "cts", "pdn", "drc", "lvs", "innovus", "tapeout"];
+
+        const allFlows = [...new Set([...asicFlowKeywords, ...pdFlowKeywords])];
+        let flowMatches = 0;
+        allFlows.forEach(k => {
+            if (hasMatch(lowerText, k)) flowMatches++;
+        });
+
+        // Each unique flow match gives +5 points, capped at 20
+        flowScore = Math.min(flowMatches * 5, 20);
+
+        // Base is capped at 80, then flow is added
+        rawScore = Math.min(80, rawScore) + flowScore;
+    }
+
+    // 3. Elite Industry Precision Boost (+15 flat points for top hardware Tier-1 companies)
     const TIER1_HARDWARE_COMPANIES = ["intel", "qualcomm", "nvidia", "arm", "broadcom", "amd", "texas instruments", "ti ", "micron", "samsung semiconductor"];
     const hasEliteInternship = TIER1_HARDWARE_COMPANIES.some(company => {
         const regex = new RegExp(`\\b${company}\\b[\\s\\S]{0,100}(?:intern|trainee|experience|engineer)`, 'i');
         return regex.test(lowerProjExp);
     });
 
-    if (hasEliteInternship) {
-        // Industry boost is only applied if the candidate has at least *some* keywords in that domain
-        if (rawScore > 10) {
-            rawScore += 15;
-        }
+    if (hasEliteInternship && rawScore > 10) {
+        rawScore += 15;
     }
 
     return Math.min(100, Math.round(rawScore));

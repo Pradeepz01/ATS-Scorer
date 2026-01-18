@@ -48,34 +48,70 @@ export async function POST(req: NextRequest) {
             const hdlbitsMatch = searchSource.match(/hdlbits\.01xz\.net\/wiki\/Special:VlgStats\/([A-Z0-9]+)/i);
 
             await Promise.all([
-                // 1. Fetch LeetCode
+                // 1. Fetch LeetCode (with Retry/Fallback)
                 (async () => {
                     if (leetcodeMatch && leetcodeMatch[1]) {
                         const username = leetcodeMatch[1].replace(/\/$/, "");
-                        try {
-                            const controller = new AbortController();
-                            const timeoutId = setTimeout(() => controller.abort(), 5000); // 5s timeout
 
-                            const response = await fetch(`https://leetcode-stats-api.herokuapp.com/${username}`, {
-                                signal: controller.signal
-                            });
-                            clearTimeout(timeoutId);
+                        const fetchLeetCode = async (apiIndex: number): Promise<any> => {
+                            if (apiIndex > 2) return null; // Logic Exhausted
 
-                            if (response.ok) {
-                                const data = await response.json();
-                                if (data.status === "success") {
-                                    platformStats.leetcode = {
-                                        totalSolved: data.totalSolved,
-                                        easySolved: data.easySolved,
-                                        mediumSolved: data.mediumSolved,
-                                        hardSolved: data.hardSolved,
-                                        ranking: data.ranking,
-                                        contributionPoints: data.contributionPoints
-                                    };
+                            const endpoints = [
+                                `https://leetcode-api-faisalshohag.vercel.app/${username}`, // Priority 1: Vercel (Fastest)
+                                `https://leetcode-stats-api.herokuapp.com/${username}`,     // Priority 2: Heroku (Reliable but Rate Limited)
+                                `https://alfa-leetcode-api.onrender.com/${username}/solved` // Priority 3: Render (Slow Cold Start)
+                            ];
+
+                            try {
+                                const controller = new AbortController();
+                                const timeoutId = setTimeout(() => controller.abort(), 12000); // 12s timeout (Increased for Render cold starts)
+
+                                const response = await fetch(endpoints[apiIndex], {
+                                    signal: controller.signal,
+                                    headers: {
+                                        'User-Agent': 'Mozilla/5.0 (compatible; ATSScorer/1.0; +http://localhost)'
+                                    }
+                                });
+                                clearTimeout(timeoutId);
+
+                                if (response.ok) {
+                                    const data = await response.json();
+
+                                    // Parse FaisalShohag API (Vercel) & Heroku API
+                                    if ((apiIndex === 0 || apiIndex === 1) && (data.status === "success" || data.totalSolved !== undefined)) {
+                                        return {
+                                            totalSolved: data.totalSolved,
+                                            easySolved: data.easySolved,
+                                            mediumSolved: data.mediumSolved,
+                                            hardSolved: data.hardSolved,
+                                            ranking: data.ranking,
+                                            contributionPoints: data.contributionPoints
+                                        };
+                                    }
+
+                                    // Parse Alfa API (Render)
+                                    if (apiIndex === 2 && data.solvedProblem !== undefined) {
+                                        return {
+                                            totalSolved: data.solvedProblem,
+                                            easySolved: data.easySolved,
+                                            mediumSolved: data.mediumSolved,
+                                            hardSolved: data.hardSolved,
+                                            ranking: 0,
+                                            contributionPoints: 0
+                                        };
+                                    }
                                 }
+                            } catch (e) {
+                                console.warn(`LeetCode API ${apiIndex} failed:`, e);
                             }
-                        } catch (e) {
-                            console.error("Failed to fetch LeetCode stats or timed out:", e);
+
+                            // Retry with next API
+                            return await fetchLeetCode(apiIndex + 1);
+                        };
+
+                        const stats = await fetchLeetCode(0);
+                        if (stats) {
+                            platformStats.leetcode = stats;
                         }
                     }
                 })(),

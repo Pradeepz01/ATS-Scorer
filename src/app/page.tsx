@@ -6,12 +6,14 @@ import ScoreDashboard from "@/components/ScoreDashboard";
 import { ATSResult } from "@/lib/scoring";
 import { motion, AnimatePresence } from "framer-motion";
 import Footer from "@/components/Footer";
+import HelpModal from "@/components/HelpModal";
 
 export default function Home() {
   const [result, setResult] = useState<ATSResult | null>(null);
 
   return (
     <main className="flex min-h-screen flex-col items-center p-6 md:p-24 selection:bg-primary/20 relative">
+      <HelpModal />
       <div className="z-10 max-w-5xl w-full items-center justify-between font-mono text-sm lg:flex mb-10">
       </div>
 
